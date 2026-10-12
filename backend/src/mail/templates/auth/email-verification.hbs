@@ -1,0 +1,16 @@
+{{#> layouts/base title="Verify your email address" subject="Please verify your email address — Gravitest"}}
+
+  <p style="font-size: 15px; color: #3f3f46; line-height: 1.7; margin: 0 0 8px;">
+    Please verify your email address to activate your Gravitest account.
+  </p>
+  <p style="font-size: 14px; color: #71717a; line-height: 1.7; margin: 0 0 4px;">
+    Enter the code below on the verification screen to activate your account.
+  </p>
+
+  {{> otp-card otpCode=otpCode expiryMinutes=expiryMinutes}}
+
+  <p style="font-size: 13px; color: #a1a1aa; margin: 24px 0 0; line-height: 1.6;">
+    If you did not create a Gravitest account, you can safely ignore this email.
+  </p>
+
+{{/layouts/base}}

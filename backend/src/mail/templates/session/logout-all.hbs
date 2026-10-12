@@ -1,0 +1,11 @@
+{{#> layouts/base title="Signed out of all devices" subject="You have been signed out of all devices — Gravitest"}}
+
+  <p style="font-size: 15px; color: #3f3f46; line-height: 1.7; margin: 0 0 8px;">
+    Your Gravitest account has been signed out of all active sessions and devices.
+  </p>
+
+  {{> info-alert message="This action was initiated from your account security settings. If you did not do this, change your password immediately." type="critical"}}
+
+  {{> action-button buttonText="Sign in again" buttonUrl=loginUrl}}
+
+{{/layouts/base}}

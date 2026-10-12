@@ -1,0 +1,231 @@
+@baseUrl = http://localhost:5000/api/v1
+@contentType = application/json
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhMTdjMWU5Zi1mMjI3LTQ1MTEtYTc2Mi00MDlmMzAwMDU0N2YiLCJyb2xlIjoic3VwZXJfYWRtaW4iLCJqdGkiOiJiY2I3YTQ5MTk3ZDllODg2MzliODI5YzEzN2I2MDE5MTNhM2NkYjRhZDBkY2Y0MjlmZTNkNjIzNWQ2YzdjMDA3IiwiaWF0IjoxNzc5NjM3NTMxLCJleHAiOjE3Nzk2NDExMzEsImF1ZCI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMCIsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMCJ9.bOwFXBoKet_PnZA-bEWZax0ZPQ7vE3N7xXqFOc4vPoE
+
+
+### After running "GET /students", copy a real profile UUID here:
+@profileId = REPLACE_WITH_PROFILE_UUID
+
+### After login, copy user UUID here (from JWT or auth response):
+@userId = REPLACE_WITH_USER_UUID
+
+
+### ─── 1. LIST ALL STUDENTS (admin) ──────────────────────────────────────────
+GET {{baseUrl}}/students
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 2. LIST WITH FILTERS ───────────────────────────────────────────────────
+GET {{baseUrl}}/students?page=1&limit=10&sortBy=totalXp&sortOrder=DESC
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 3. SEARCH BY NAME / EMAIL ─────────────────────────────────────────────
+GET {{baseUrl}}/students?search=Emeka
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 4. GET STUDENT PROFILE BY PROFILE ID ──────────────────────────────────
+GET {{baseUrl}}/students/{{profileId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 5. GET OWN PROFILE (uses auth token via @UserId decorator) ────────────
+GET {{baseUrl}}/students/me/profile
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 6. GET DASHBOARD OVERVIEW ─────────────────────────────────────────────
+### Returns: stats, recentSessions, weakTopics, daysUntilExam
+GET {{baseUrl}}/students/{{profileId}}/overview
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 7. GET PERFORMANCE ANALYTICS (last 90 days) ───────────────────────────
+GET {{baseUrl}}/students/{{profileId}}/performance
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 8. GET PERFORMANCE (last 30 days) ─────────────────────────────────────
+GET {{baseUrl}}/students/{{profileId}}/performance?days=30
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 9. GET SESSION HISTORY ────────────────────────────────────────────────
+GET {{baseUrl}}/students/{{profileId}}/sessions
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 10. SESSION HISTORY WITH FILTERS ──────────────────────────────────────
+GET {{baseUrl}}/students/{{profileId}}/sessions?examType=waec&sortBy=percentage&sortOrder=DESC&page=1&limit=5
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 11. GET WEAK TOPICS ────────────────────────────────────────────────────
+GET {{baseUrl}}/students/{{profileId}}/weak-topics
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 12. WEAK TOPICS FILTERED BY SUBJECT ───────────────────────────────────
+GET {{baseUrl}}/students/{{profileId}}/weak-topics?subject=mathematics&status=active
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 13. GET STUDY ACTIVITY HEATMAP (last 90 days) ─────────────────────────
+GET {{baseUrl}}/students/{{profileId}}/activity
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 14. STUDY ACTIVITY WITH DATE RANGE ────────────────────────────────────
+GET {{baseUrl}}/students/{{profileId}}/activity?from=2025-01-01&to=2025-05-31
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 15. GET STREAK INFO ────────────────────────────────────────────────────
+GET {{baseUrl}}/students/{{profileId}}/streak
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 16. GET TOPIC MASTERY HISTORY ─────────────────────────────────────────
+GET {{baseUrl}}/students/{{profileId}}/topic-mastery
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 17. TOPIC MASTERY FILTERED BY SUBJECT ─────────────────────────────────
+GET {{baseUrl}}/students/{{profileId}}/topic-mastery?subject=physics
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 18. PLATFORM LEADERBOARD ──────────────────────────────────────────────
+GET {{baseUrl}}/students/leaderboard?page=1&limit=20&currentProfileId={{profileId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 19. UPDATE OWN PROFILE ────────────────────────────────────────────────
+### Uses @UserId() from the auth token — no profile id in the URL or body.
+### Make sure @token belongs to the student whose profile you're testing.
+PATCH {{baseUrl}}/students/me/profile
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "currentSchool": "Federal Government College Lagos",
+  "currentClass": "SS3",
+  "graduationYear": 2026,
+  "examTargets": ["waec", "jamb"],
+  "examDate": "2026-05-15",
+  "targetScore": 320,
+  "targetUniversity": "University of Lagos",
+  "targetCourse": "Medicine and Surgery",
+  "focusSubjects": ["mathematics", "physics", "chemistry", "biology", "english"],
+  "parentPhone": "08012345678",
+  "parentName": "Mr. Adebayo Okafor",
+  "socialLinks": {
+    "twitter": "https://twitter.com/okafor_student",
+    "instagram": null,
+    "linkedin": null,
+    "youtube": null
+  }
+}
+
+### ─── 20. ADMIN UPDATE (active status / admin-managed fields) ───────────────
+PATCH {{baseUrl}}/students/{{profileId}}/admin
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "isActive": true
+}
+
+### ─── 21. AWARD XP (manual / internal) ──────────────────────────────────────
+### Normally called automatically after exam session completes
+POST {{baseUrl}}/students/award-xp
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "studentProfileId": "{{profileId}}",
+  "xp": 150,
+  "reason": "exam_completed"
+}
+
+### ─── 22. AWARD XP — STREAK MILESTONE ───────────────────────────────────────
+POST {{baseUrl}}/students/award-xp
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "studentProfileId": "{{profileId}}",
+  "xp": 500,
+  "reason": "streak_milestone_day7"
+}
+
+### ─── 23. RECORD STUDY ACTIVITY ─────────────────────────────────────────────
+### Normally called automatically after exam session ends
+### Use this to manually seed activity data for testing
+POST {{baseUrl}}/students/record-activity
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "studentProfileId": "{{profileId}}",
+  "minutesStudied": 45,
+  "questionsAttempted": 40,
+  "questionsCorrect": 32,
+  "xpEarned": 150,
+  "subjectBreakdown": [
+    {
+      "subject": "mathematics",
+      "minutes": 25,
+      "questionsAttempted": 20,
+      "questionsCorrect": 17,
+      "score": 85
+    },
+    {
+      "subject": "physics",
+      "minutes": 20,
+      "questionsAttempted": 20,
+      "questionsCorrect": 15,
+      "score": 75
+    }
+  ]
+}
+
+### ─── 24. RECORD ANOTHER DAY'S ACTIVITY (seed streak) ───────────────────────
+POST {{baseUrl}}/students/record-activity
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "studentProfileId": "{{profileId}}",
+  "minutesStudied": 60,
+  "questionsAttempted": 50,
+  "questionsCorrect": 40,
+  "xpEarned": 200,
+  "subjectBreakdown": [
+    {
+      "subject": "chemistry",
+      "minutes": 30,
+      "questionsAttempted": 25,
+      "questionsCorrect": 20,
+      "score": 80
+    },
+    {
+      "subject": "biology",
+      "minutes": 30,
+      "questionsAttempted": 25,
+      "questionsCorrect": 20,
+      "score": 80
+    }
+  ]
+}
+
+### ─── 25. VERIFY STREAK UPDATED AFTER ACTIVITY ──────────────────────────────
+GET {{baseUrl}}/students/{{profileId}}/streak
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 26. VERIFY OVERVIEW UPDATED ───────────────────────────────────────────
+GET {{baseUrl}}/students/{{profileId}}/overview
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}

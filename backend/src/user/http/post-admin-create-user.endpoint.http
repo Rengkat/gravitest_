@@ -1,0 +1,12 @@
+POST http://localhost:5000/api/v1/users
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhMTdjMWU5Zi1mMjI3LTQ1MTEtYTc2Mi00MDlmMzAwMDU0N2YiLCJyb2xlIjoic3VwZXJfYWRtaW4iLCJqdGkiOiJjODJkZmUxN2ZhOWY2Yzk4YjkyMGUwM2NmOWNjMDRlM2FhMjhlOTU1NGNhZmI1ZjJkNjdmMzc0NDQwZmZkZjIwIiwiaWF0IjoxNzc5MDQ1Mzg3LCJleHAiOjE3NzkwNDg5ODcsImF1ZCI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMCIsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMCJ9.kldoLYmkd357vZMEG4RcHrbqIqt4_pt1Iwz1blUoDTY
+content-type: application/json
+{
+      "firstName": "Chukwuemeka",
+      "lastName": "Okonkwo",
+      "email": "chukwuemeka.okonko@gmail.com",
+      "phoneNumber": "+2348031234567",
+      "role": "student",
+      "stateOfResidence": "Anambra",
+      "lga": "Onitsha"
+    }

@@ -1,0 +1,20 @@
+{{#> layouts/base title="Unsubscribed" subject="You've been unsubscribed"}}
+
+  <p style="font-size: 18px; font-weight: 600; color: #0a0a0a; margin: 0 0 16px;">
+    You've been unsubscribed
+  </p>
+
+  <div style="font-size: 15px; color: #3f3f46; line-height: 1.7; margin: 0 0 8px;">
+    Hi {{firstName}}, you won't receive marketing or broadcast emails from Gravitest anymore.
+    You'll still get essential account emails — things like password resets, payment receipts,
+    and security alerts — since those aren't part of this preference.
+  </div>
+
+  <div style="font-size: 14px; color: #71717a; line-height: 1.7; margin: 16px 0 0;">
+    Changed your mind? You can turn marketing emails back on anytime from your notification
+    settings.
+  </div>
+
+  {{> action-button buttonText="Manage Notification Settings" buttonUrl=notificationSettingsUrl}}
+
+{{/layouts/base}}

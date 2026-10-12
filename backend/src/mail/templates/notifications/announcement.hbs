@@ -1,0 +1,15 @@
+{{#> layouts/base title=subject subject=subject}}
+
+  {{#if heading}}
+    <p style="font-size: 18px; font-weight: 600; color: #0a0a0a; margin: 0 0 16px;">
+      {{heading}}
+    </p>
+  {{/if}}
+
+  <div style="font-size: 15px; color: #3f3f46; line-height: 1.7; margin: 0 0 8px; white-space: pre-line;">{{body}}</div>
+
+  {{#if buttonUrl}}
+    {{> action-button buttonText=buttonText buttonUrl=buttonUrl}}
+  {{/if}}
+
+{{/layouts/base}}

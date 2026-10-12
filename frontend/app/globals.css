@@ -1,0 +1,484 @@
+@import "tailwindcss";
+@import "./theme.css";
+
+@source "../app";
+@source "../components";
+
+/* ─────────────────────────────────────────────────────────
+   FONTS — self-hosted via @fontsource (see app/layout.tsx).
+   Family names below must match exactly what each @fontsource
+   package registers in its @font-face rules.
+───────────────────────────────────────────────────────── */
+:root {
+    --font-sora: "Sora Variable", "Sora", sans-serif;
+    --font-dm-serif: "DM Serif Display", serif;
+    --font-jetbrains-mono: "JetBrains Mono Variable", "JetBrains Mono", monospace;
+}
+
+/* ─────────────────────────────────────────────────────────
+   THEME
+───────────────────────────────────────────────────────── */
+@theme {
+    /* ── Spacing — restores p-*, m-*, gap-*, w-*, h-* etc. ── */
+    --spacing: 0.25rem;
+
+    /* ── Fonts ── */
+    --font-sans: var(--font-sora);
+    --font-serif: var(--font-dm-serif);
+    --font-mono: var(--font-jetbrains-mono);
+
+    /* ── Brand colours ── */
+    --color-cream: #fdfaf4;
+    --color-cream-dark: #f5f0e8;
+    --color-cream-border: rgba(30, 80, 50, 0.12);
+
+    /* green-50…900 now come from the accent variables — see theme.css */
+
+    --color-gold: #f5c842;
+    --color-gold-dark: #d4a017;
+    --color-gold-light: #fef3c7;
+
+    --color-dark: #080f0a;
+    --color-text-main: #111a14;
+    --color-text-muted: #4a6357;
+    --color-text-light: #8aab98;
+
+    /* ── Shadows ── */
+    --shadow-card: 0 4px 32px rgba(13, 43, 26, 0.10);
+    --shadow-heavy: 0 20px 80px rgba(13, 43, 26, 0.18);
+    --shadow-glow: 0 0 40px rgba(46, 139, 87, 0.15);
+
+    /* ── Border radius ── */
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 20px;
+    --radius-2xl: 28px;
+}
+
+/* ─────────────────────────────────────────────────────────
+   BASE
+   Kept inside @layer base so @layer utilities (Tailwind's
+   p-*, m-*, gap-* etc.) always win over the reset.
+───────────────────────────────────────────────────────── */
+@layer base {
+
+    *,
+    *::before,
+    *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+
+    html {
+        scroll-behavior: smooth;
+        height: 100%;
+    }
+
+    body {
+        font-family: var(--font-sora), 'Sora', sans-serif;
+        background: var(--color-cream);
+        color: var(--color-text-main);
+        font-size: calc(1rem * var(--font-scale, 1));
+        line-height: 1.6;
+        overflow-x: hidden;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+
+    h1,
+    h2,
+    h3 {
+        font-family: var(--font-serif), 'DM Serif Display', serif;
+        letter-spacing: -0.03em;
+        line-height: 1.1;
+    }
+
+    /* Noise texture overlay */
+    body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+        pointer-events: none;
+        z-index: 9999;
+        opacity: 0.4;
+    }
+
+    html.dark body::before {
+        opacity: 0.15;
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: var(--color-cream-dark);
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: var(--accent-400);
+        border-radius: 3px;
+    }
+
+    /* Focus ring */
+    :focus-visible {
+        outline: 2px solid var(--accent-500);
+        outline-offset: 2px;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────
+   GLOBAL ANIMATIONS
+───────────────────────────────────────────────────────── */
+@keyframes fadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(24px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes float {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+@keyframes pulse-dot {
+
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.5;
+        transform: scale(0.8);
+    }
+}
+
+@keyframes shimmer {
+    from {
+        background-position: 200% 0;
+    }
+
+    to {
+        background-position: -200% 0;
+    }
+}
+
+@keyframes ticker {
+    0% {
+        transform: translateY(0);
+    }
+
+    25% {
+        transform: translateY(0);
+    }
+
+    33% {
+        transform: translateY(-100%);
+    }
+
+    58% {
+        transform: translateY(-100%);
+    }
+
+    66% {
+        transform: translateY(-200%);
+    }
+
+    91% {
+        transform: translateY(-200%);
+    }
+
+    100% {
+        transform: translateY(-300%);
+    }
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes shake {
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    20%,
+    60% {
+        transform: translateX(-5px);
+    }
+
+    40%,
+    80% {
+        transform: translateX(5px);
+    }
+}
+
+@keyframes glow-pulse {
+
+    0%,
+    100% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: translate(-50%, -50%) scale(1.2);
+        opacity: 0.6;
+    }
+}
+
+@keyframes orbit-spin {
+    to {
+        transform: translate(-50%, -50%) rotate(360deg);
+    }
+}
+
+@keyframes orbit-dot {
+    0% {
+        transform: translate(-50%, -50%) rotate(0deg) translate(54px) rotate(0deg);
+    }
+
+    100% {
+        transform: translate(-50%, -50%) rotate(360deg) translate(54px) rotate(-360deg);
+    }
+}
+
+@keyframes logo-breathe {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(58, 171, 106, 0);
+    }
+
+    50% {
+        box-shadow: 0 0 32px 4px rgba(58, 171, 106, 0.15);
+    }
+}
+
+@keyframes dot-bounce {
+
+    0%,
+    80%,
+    100% {
+        transform: translateY(0);
+        opacity: 0.5;
+    }
+
+    40% {
+        transform: translateY(-8px);
+        opacity: 1;
+    }
+}
+
+@keyframes message-cycle {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes indeterminate-progress {
+    0% {
+        width: 0%;
+        margin-left: 0%;
+    }
+
+    50% {
+        width: 60%;
+        margin-left: 20%;
+    }
+
+    100% {
+        width: 0%;
+        margin-left: 100%;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────
+   SCROLL REVEAL
+───────────────────────────────────────────────────────── */
+.reveal {
+    opacity: 0;
+    transform: translateY(28px);
+    transition:
+        opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1),
+        transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.reveal-delay-1 {
+    transition-delay: 0.1s;
+}
+
+.reveal-delay-2 {
+    transition-delay: 0.2s;
+}
+
+.reveal-delay-3 {
+    transition-delay: 0.3s;
+}
+
+/* ─────────────────────────────────────────────────────────
+   UTILITY CLASSES
+───────────────────────────────────────────────────────── */
+.grid-pattern {
+    background-image:
+        linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+    background-size: 48px 48px;
+}
+
+.section-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: calc(0.6875rem * var(--font-scale, 1));
+    font-weight: 700;
+    color: var(--color-dktx-green-600);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+}
+
+.section-label::before {
+    content: '';
+    width: 24px;
+    height: 2px;
+    background: var(--accent-500);
+    border-radius: 2px;
+}
+
+.g-input {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    border: 1.5px solid rgba(30, 80, 50, 0.15);
+    border-radius: 0.75rem;
+    background: var(--gt-surface);
+    font-family: var(--font-sora), 'Sora', sans-serif;
+    font-size: calc(0.875rem * var(--font-scale, 1));
+    font-weight: 500;
+    color: var(--color-dktx-green-900);
+    transition: all 0.2s;
+    outline: none;
+}
+
+.g-input::placeholder {
+    color: rgba(17, 26, 20, 0.3);
+}
+
+.g-input:focus {
+    border-color: var(--accent-800);
+    box-shadow: 0 0 0 3px rgba(26, 74, 46, 0.1);
+}
+
+.g-input.error {
+    border-color: #e63946;
+    box-shadow: 0 0 0 3px rgba(230, 57, 70, 0.1);
+}
+
+html.dark .g-input {
+    border-color: rgba(168, 223, 194, 0.22);
+}
+
+html.dark .g-input::placeholder {
+    color: rgba(232, 240, 235, 0.35);
+}
+
+html.dark .g-input:focus {
+    border-color: var(--accent-400);
+    box-shadow: 0 0 0 3px rgba(93, 201, 138, 0.18);
+}
+
+.g-input.success {
+    border-color: var(--accent-500);
+}
+
+.g-checkbox {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 5px;
+    border: 1.5px solid rgba(30, 80, 50, 0.25);
+    background: var(--gt-surface);
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.g-checkbox:checked {
+    background: var(--accent-800);
+    border-color: var(--accent-800);
+    background-image: url("data:image/svg+xml,%3Csvg width='12' height='9' viewBox='0 0 12 9' fill='none'%3E%3Cpath d='M1 4L4.5 7.5L11 1' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: center;
+}
+
+.g-checkbox:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(26, 74, 46, 0.15);
+}
+
+.skeleton {
+    background: linear-gradient(90deg,
+            rgba(26, 74, 46, 0.06) 25%,
+            rgba(26, 74, 46, 0.11) 50%,
+            rgba(26, 74, 46, 0.06) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.6s ease-in-out infinite;
+    border-radius: 0.375rem;
+}
+
+html.dark .g-checkbox {
+    border-color: rgba(168, 223, 194, 0.3);
+}
+
+html.dark .skeleton {
+    background: linear-gradient(90deg,
+            rgba(168, 223, 194, 0.06) 25%,
+            rgba(168, 223, 194, 0.12) 50%,
+            rgba(168, 223, 194, 0.06) 75%);
+    background-size: 200% 100%;
+}

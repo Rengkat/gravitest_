@@ -1,0 +1,21 @@
+{{#> layouts/base title="New sign-in detected" subject="New sign-in to your account — Gravitest"}}
+
+  <p style="font-size: 15px; color: #3f3f46; line-height: 1.7; margin: 0 0 8px;">
+    We detected a sign-in to your Gravitest account from a new device or location.
+  </p>
+
+  {{> security-alert
+      alertMessage="Sign-in details"
+      deviceName=deviceName
+      browser=browser
+      ipAddress=ipAddress
+      time=time
+      location=location}}
+
+  <p style="font-size: 14px; color: #71717a; line-height: 1.7; margin: 20px 0 0;">
+    If this was you, no action is needed. If you do not recognise this activity, secure your account immediately.
+  </p>
+
+  {{> action-button buttonText="Review account security" buttonUrl=securityUrl}}
+
+{{/layouts/base}}

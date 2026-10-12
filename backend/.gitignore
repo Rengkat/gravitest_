@@ -1,0 +1,13 @@
+node_modules
+dist
+.env.*
+.git
+.vscode
+/node_modules
+*.env
+.env*
+dist
+*.log
+.vscode
+coverage
+.next/

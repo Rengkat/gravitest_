@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>You're offline — Gravitest</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f7f5ef;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #1a2e22;
+      padding: 24px;
+      text-align: center;
+    }
+    .card {
+      max-width: 380px;
+    }
+    .icon {
+      width: 72px;
+      height: 72px;
+      border-radius: 18px;
+      background: #1a4a2e;
+      color: #f5c842;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 42px;
+      font-weight: bold;
+      margin: 0 auto 20px;
+    }
+    h1 {
+      font-size: 20px;
+      margin: 0 0 8px;
+    }
+    p {
+      font-size: 14px;
+      color: #5a6b60;
+      line-height: 1.5;
+      margin: 0 0 24px;
+    }
+    button {
+      background: #1a4a2e;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      padding: 12px 24px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #143a24;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">G</div>
+    <h1>You're offline</h1>
+    <p>
+      This page isn't available without a connection. Anything you'd already
+      opened recently may still work — try going back, or reconnect and
+      reload.
+    </p>
+    <button onclick="window.location.reload()">Try again</button>
+  </div>
+</body>
+</html>

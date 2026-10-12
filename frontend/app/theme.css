@@ -1,0 +1,380 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   Gravitest theme layer — dark mode, admin-controlled accent, font size.
+   Imported by globals.css. Nothing here changes how the app looks in light
+   mode with the default accent and "Medium" text.
+
+   How it works (so you can extend it):
+
+   • ACCENT   Tailwind's green-* scale is pointed at --accent-50…900. The
+              server/admin sets those ten variables (lib/theme/accent.ts), so
+              every bg-green-*, text-green-*, from-green-* … follows.
+
+   • DARK     <html class="dark"> (set by ThemeProvider, only inside the app).
+              Colours that are used for ONE role are flipped by redefining the
+              palette variable. Colours used for TWO roles (text-green-900 is
+              a heading, bg-green-900 is a hero panel) are split with the
+              --color-dktx-* (text) and --color-dkbg-* (background) tokens and
+              the @utility overrides below, which Tailwind applies to every
+              variant for free (hover:, md:, /60 opacity …).
+
+   • FONT     --font-scale (0.9 / 1 / 1.125 / 1.25). Named sizes (text-sm …)
+              read it through --text-*; px/rem arbitrary sizes such as
+              text-[13px] read it through the text-* utility override.
+   ───────────────────────────────────────────────────────────────────────── */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --font-scale: 1;
+
+  /* accent — defaults are the original green palette; the inline
+     <style id="gt-accent"> from the server overrides them */
+  --accent-50: #edfff5;
+  --accent-100: #d4f5e2;
+  --accent-200: #a8dfc2;
+  --accent-300: #5dc98a;
+  --accent-400: #3aab6a;
+  --accent-500: #2e8b57;
+  --accent-600: #276b43;
+  --accent-700: #1f5c38;
+  --accent-800: #1a4a2e;
+  --accent-900: #0d2b1a;
+
+  /* surfaces */
+  --gt-surface: #ffffff;
+  --gt-surface-2: #f9fafb;
+  --gt-line: rgba(30, 80, 50, 0.1);
+  --gt-fg-strong: #0d2b1a;
+  --gt-tint-50: var(--accent-50);
+  --gt-tint-100: var(--accent-100);
+  --gt-tint-200: var(--accent-200);
+}
+
+@theme {
+  /* accent → the green scale used across the whole codebase */
+
+  --color-green-50: var(--accent-50);
+  --color-green-100: var(--accent-100);
+  --color-green-200: var(--accent-200);
+  --color-green-300: var(--accent-300);
+  --color-green-400: var(--accent-400);
+  --color-green-500: var(--accent-500);
+  --color-green-600: var(--accent-600);
+  --color-green-700: var(--accent-700);
+  --color-green-800: var(--accent-800);
+  --color-green-900: var(--accent-900);
+
+  /* named text sizes follow the font-size setting */
+  --text-xs: calc(0.75rem * var(--font-scale, 1));
+  --text-sm: calc(0.875rem * var(--font-scale, 1));
+  --text-base: calc(1rem * var(--font-scale, 1));
+  --text-lg: calc(1.125rem * var(--font-scale, 1));
+  --text-xl: calc(1.25rem * var(--font-scale, 1));
+  --text-2xl: calc(1.5rem * var(--font-scale, 1));
+  --text-3xl: calc(1.875rem * var(--font-scale, 1));
+  --text-4xl: calc(2.25rem * var(--font-scale, 1));
+  --text-5xl: calc(3rem * var(--font-scale, 1));
+  --text-6xl: calc(3.75rem * var(--font-scale, 1));
+  --text-7xl: calc(4.5rem * var(--font-scale, 1));
+  --text-8xl: calc(6rem * var(--font-scale, 1));
+  --text-9xl: calc(8rem * var(--font-scale, 1));
+
+  /* background-role tokens (light values = exactly what the classes always gave) */
+  --color-dkbg-white: var(--gt-surface);
+  --color-dkbg-green-50: var(--gt-tint-50);
+  --color-dkbg-green-100: var(--gt-tint-100);
+  --color-dkbg-green-200: var(--gt-tint-200);
+
+  /* border-role tokens: dark accent borders (border-green-800) vanish on a dark surface */
+  --color-dkbd-green-700: var(--accent-700);
+  --color-dkbd-green-800: var(--accent-800);
+  --color-dkbd-green-900: var(--accent-900);
+
+  /* text-role tokens */
+  --color-dktx-green-600: var(--accent-600);
+  --color-dktx-green-700: var(--accent-700);
+  --color-dktx-green-800: var(--accent-800);
+  --color-dktx-green-900: var(--accent-900);
+  --color-dktx-gray-400: var(--color-gray-400);
+  --color-dktx-gray-500: var(--color-gray-500);
+  --color-dktx-gray-600: var(--color-gray-600);
+  --color-dktx-gray-700: var(--color-gray-700);
+  --color-dktx-gray-800: var(--color-gray-800);
+  --color-dktx-gray-900: var(--color-gray-900);
+  --color-dktx-amber-600: var(--color-amber-600);
+  --color-dktx-amber-700: var(--color-amber-700);
+  --color-dktx-amber-800: var(--color-amber-800);
+  --color-dktx-amber-900: var(--color-amber-900);
+  --color-dktx-blue-600: var(--color-blue-600);
+  --color-dktx-blue-700: var(--color-blue-700);
+  --color-dktx-blue-800: var(--color-blue-800);
+  --color-dktx-blue-900: var(--color-blue-900);
+  --color-dktx-cyan-600: var(--color-cyan-600);
+  --color-dktx-cyan-700: var(--color-cyan-700);
+  --color-dktx-cyan-800: var(--color-cyan-800);
+  --color-dktx-cyan-900: var(--color-cyan-900);
+  --color-dktx-emerald-600: var(--color-emerald-600);
+  --color-dktx-emerald-700: var(--color-emerald-700);
+  --color-dktx-emerald-800: var(--color-emerald-800);
+  --color-dktx-emerald-900: var(--color-emerald-900);
+  --color-dktx-fuchsia-600: var(--color-fuchsia-600);
+  --color-dktx-fuchsia-700: var(--color-fuchsia-700);
+  --color-dktx-fuchsia-800: var(--color-fuchsia-800);
+  --color-dktx-fuchsia-900: var(--color-fuchsia-900);
+  --color-dktx-indigo-600: var(--color-indigo-600);
+  --color-dktx-indigo-700: var(--color-indigo-700);
+  --color-dktx-indigo-800: var(--color-indigo-800);
+  --color-dktx-indigo-900: var(--color-indigo-900);
+  --color-dktx-lime-600: var(--color-lime-600);
+  --color-dktx-lime-700: var(--color-lime-700);
+  --color-dktx-lime-800: var(--color-lime-800);
+  --color-dktx-lime-900: var(--color-lime-900);
+  --color-dktx-orange-600: var(--color-orange-600);
+  --color-dktx-orange-700: var(--color-orange-700);
+  --color-dktx-orange-800: var(--color-orange-800);
+  --color-dktx-orange-900: var(--color-orange-900);
+  --color-dktx-pink-600: var(--color-pink-600);
+  --color-dktx-pink-700: var(--color-pink-700);
+  --color-dktx-pink-800: var(--color-pink-800);
+  --color-dktx-pink-900: var(--color-pink-900);
+  --color-dktx-purple-600: var(--color-purple-600);
+  --color-dktx-purple-700: var(--color-purple-700);
+  --color-dktx-purple-800: var(--color-purple-800);
+  --color-dktx-purple-900: var(--color-purple-900);
+  --color-dktx-red-600: var(--color-red-600);
+  --color-dktx-red-700: var(--color-red-700);
+  --color-dktx-red-800: var(--color-red-800);
+  --color-dktx-red-900: var(--color-red-900);
+  --color-dktx-rose-600: var(--color-rose-600);
+  --color-dktx-rose-700: var(--color-rose-700);
+  --color-dktx-rose-800: var(--color-rose-800);
+  --color-dktx-rose-900: var(--color-rose-900);
+  --color-dktx-sky-600: var(--color-sky-600);
+  --color-dktx-sky-700: var(--color-sky-700);
+  --color-dktx-sky-800: var(--color-sky-800);
+  --color-dktx-sky-900: var(--color-sky-900);
+  --color-dktx-teal-600: var(--color-teal-600);
+  --color-dktx-teal-700: var(--color-teal-700);
+  --color-dktx-teal-800: var(--color-teal-800);
+  --color-dktx-teal-900: var(--color-teal-900);
+  --color-dktx-violet-600: var(--color-violet-600);
+  --color-dktx-violet-700: var(--color-violet-700);
+  --color-dktx-violet-800: var(--color-violet-800);
+  --color-dktx-violet-900: var(--color-violet-900);
+  --color-dktx-yellow-600: var(--color-yellow-600);
+  --color-dktx-yellow-700: var(--color-yellow-700);
+  --color-dktx-yellow-800: var(--color-yellow-800);
+  --color-dktx-yellow-900: var(--color-yellow-900);
+}
+
+/* ── Dark palette ─────────────────────────────────────────────────────── */
+html.dark {
+  color-scheme: dark;
+
+  --gt-surface: #131c17;
+  --gt-surface-2: #18231d;
+  --gt-line: rgba(168, 223, 194, 0.14);
+  --gt-fg-strong: #eaf3ed;
+  --gt-tint-50: color-mix(in oklab, var(--accent-500) 12%, #131c17);
+  --gt-tint-100: color-mix(in oklab, var(--accent-500) 18%, #131c17);
+  --gt-tint-200: color-mix(in oklab, var(--accent-500) 26%, #131c17);
+
+  /* brand tokens (bg-cream, text-text-muted …) */
+  --color-cream: #0b110e;
+  --color-cream-dark: #0f1712;
+  --color-cream-border: rgba(168, 223, 194, 0.14);
+  --color-text-main: #e8f0eb;
+  --color-text-muted: #93a89b;
+  --color-text-light: #6f887a;
+  --shadow-card: 0 4px 32px rgba(0, 0, 0, 0.45);
+  --shadow-heavy: 0 8px 48px rgba(0, 0, 0, 0.6);
+
+  /* neutrals used as backgrounds / borders / dividers (text is handled below) */
+  --color-gray-50: #18231d;
+  --color-gray-100: #1d2a23;
+  --color-gray-200: #26362d;
+  --color-gray-300: #33463c;
+  --color-gray-400: #4d6558;
+  --color-gray-500: #6b8578;
+  --color-gray-600: #869e91;
+
+  /* pale status tints (bg-red-50, bg-blue-100 …) become dark tints */
+  --color-amber-50: color-mix(in oklab, var(--color-amber-500) 12%, #131c17);
+  --color-amber-100: color-mix(in oklab, var(--color-amber-500) 18%, #131c17);
+  --color-blue-50: color-mix(in oklab, var(--color-blue-500) 12%, #131c17);
+  --color-blue-100: color-mix(in oklab, var(--color-blue-500) 18%, #131c17);
+  --color-cyan-50: color-mix(in oklab, var(--color-cyan-500) 12%, #131c17);
+  --color-cyan-100: color-mix(in oklab, var(--color-cyan-500) 18%, #131c17);
+  --color-emerald-50: color-mix(in oklab, var(--color-emerald-500) 12%, #131c17);
+  --color-emerald-100: color-mix(in oklab, var(--color-emerald-500) 18%, #131c17);
+  --color-fuchsia-50: color-mix(in oklab, var(--color-fuchsia-500) 12%, #131c17);
+  --color-fuchsia-100: color-mix(in oklab, var(--color-fuchsia-500) 18%, #131c17);
+  --color-indigo-50: color-mix(in oklab, var(--color-indigo-500) 12%, #131c17);
+  --color-indigo-100: color-mix(in oklab, var(--color-indigo-500) 18%, #131c17);
+  --color-lime-50: color-mix(in oklab, var(--color-lime-500) 12%, #131c17);
+  --color-lime-100: color-mix(in oklab, var(--color-lime-500) 18%, #131c17);
+  --color-orange-50: color-mix(in oklab, var(--color-orange-500) 12%, #131c17);
+  --color-orange-100: color-mix(in oklab, var(--color-orange-500) 18%, #131c17);
+  --color-pink-50: color-mix(in oklab, var(--color-pink-500) 12%, #131c17);
+  --color-pink-100: color-mix(in oklab, var(--color-pink-500) 18%, #131c17);
+  --color-purple-50: color-mix(in oklab, var(--color-purple-500) 12%, #131c17);
+  --color-purple-100: color-mix(in oklab, var(--color-purple-500) 18%, #131c17);
+  --color-red-50: color-mix(in oklab, var(--color-red-500) 12%, #131c17);
+  --color-red-100: color-mix(in oklab, var(--color-red-500) 18%, #131c17);
+  --color-rose-50: color-mix(in oklab, var(--color-rose-500) 12%, #131c17);
+  --color-rose-100: color-mix(in oklab, var(--color-rose-500) 18%, #131c17);
+  --color-sky-50: color-mix(in oklab, var(--color-sky-500) 12%, #131c17);
+  --color-sky-100: color-mix(in oklab, var(--color-sky-500) 18%, #131c17);
+  --color-teal-50: color-mix(in oklab, var(--color-teal-500) 12%, #131c17);
+  --color-teal-100: color-mix(in oklab, var(--color-teal-500) 18%, #131c17);
+  --color-violet-50: color-mix(in oklab, var(--color-violet-500) 12%, #131c17);
+  --color-violet-100: color-mix(in oklab, var(--color-violet-500) 18%, #131c17);
+  --color-yellow-50: color-mix(in oklab, var(--color-yellow-500) 12%, #131c17);
+  --color-yellow-100: color-mix(in oklab, var(--color-yellow-500) 18%, #131c17);
+
+  --color-dkbd-green-700: var(--accent-400);
+  --color-dkbd-green-800: var(--accent-400);
+  --color-dkbd-green-900: var(--accent-500);
+
+  /* text-role tokens */
+  --color-dktx-gray-400: #7c9386;
+  --color-dktx-gray-500: #93a89b;
+  --color-dktx-gray-600: #adbdb3;
+  --color-dktx-gray-700: #c4d1c9;
+  --color-dktx-gray-800: #dde7e0;
+  --color-dktx-gray-900: #eef5f0;
+  --color-dktx-green-600: var(--accent-300);
+  --color-dktx-green-700: var(--accent-200);
+  --color-dktx-green-800: var(--accent-100);
+  --color-dktx-green-900: var(--accent-50);
+  --color-dktx-amber-600: var(--color-amber-400);
+  --color-dktx-amber-700: var(--color-amber-300);
+  --color-dktx-amber-800: var(--color-amber-200);
+  --color-dktx-amber-900: var(--color-amber-100);
+  --color-dktx-blue-600: var(--color-blue-400);
+  --color-dktx-blue-700: var(--color-blue-300);
+  --color-dktx-blue-800: var(--color-blue-200);
+  --color-dktx-blue-900: var(--color-blue-100);
+  --color-dktx-cyan-600: var(--color-cyan-400);
+  --color-dktx-cyan-700: var(--color-cyan-300);
+  --color-dktx-cyan-800: var(--color-cyan-200);
+  --color-dktx-cyan-900: var(--color-cyan-100);
+  --color-dktx-emerald-600: var(--color-emerald-400);
+  --color-dktx-emerald-700: var(--color-emerald-300);
+  --color-dktx-emerald-800: var(--color-emerald-200);
+  --color-dktx-emerald-900: var(--color-emerald-100);
+  --color-dktx-fuchsia-600: var(--color-fuchsia-400);
+  --color-dktx-fuchsia-700: var(--color-fuchsia-300);
+  --color-dktx-fuchsia-800: var(--color-fuchsia-200);
+  --color-dktx-fuchsia-900: var(--color-fuchsia-100);
+  --color-dktx-indigo-600: var(--color-indigo-400);
+  --color-dktx-indigo-700: var(--color-indigo-300);
+  --color-dktx-indigo-800: var(--color-indigo-200);
+  --color-dktx-indigo-900: var(--color-indigo-100);
+  --color-dktx-lime-600: var(--color-lime-400);
+  --color-dktx-lime-700: var(--color-lime-300);
+  --color-dktx-lime-800: var(--color-lime-200);
+  --color-dktx-lime-900: var(--color-lime-100);
+  --color-dktx-orange-600: var(--color-orange-400);
+  --color-dktx-orange-700: var(--color-orange-300);
+  --color-dktx-orange-800: var(--color-orange-200);
+  --color-dktx-orange-900: var(--color-orange-100);
+  --color-dktx-pink-600: var(--color-pink-400);
+  --color-dktx-pink-700: var(--color-pink-300);
+  --color-dktx-pink-800: var(--color-pink-200);
+  --color-dktx-pink-900: var(--color-pink-100);
+  --color-dktx-purple-600: var(--color-purple-400);
+  --color-dktx-purple-700: var(--color-purple-300);
+  --color-dktx-purple-800: var(--color-purple-200);
+  --color-dktx-purple-900: var(--color-purple-100);
+  --color-dktx-red-600: var(--color-red-400);
+  --color-dktx-red-700: var(--color-red-300);
+  --color-dktx-red-800: var(--color-red-200);
+  --color-dktx-red-900: var(--color-red-100);
+  --color-dktx-rose-600: var(--color-rose-400);
+  --color-dktx-rose-700: var(--color-rose-300);
+  --color-dktx-rose-800: var(--color-rose-200);
+  --color-dktx-rose-900: var(--color-rose-100);
+  --color-dktx-sky-600: var(--color-sky-400);
+  --color-dktx-sky-700: var(--color-sky-300);
+  --color-dktx-sky-800: var(--color-sky-200);
+  --color-dktx-sky-900: var(--color-sky-100);
+  --color-dktx-teal-600: var(--color-teal-400);
+  --color-dktx-teal-700: var(--color-teal-300);
+  --color-dktx-teal-800: var(--color-teal-200);
+  --color-dktx-teal-900: var(--color-teal-100);
+  --color-dktx-violet-600: var(--color-violet-400);
+  --color-dktx-violet-700: var(--color-violet-300);
+  --color-dktx-violet-800: var(--color-violet-200);
+  --color-dktx-violet-900: var(--color-violet-100);
+  --color-dktx-yellow-600: var(--color-yellow-400);
+  --color-dktx-yellow-700: var(--color-yellow-300);
+  --color-dktx-yellow-800: var(--color-yellow-200);
+  --color-dktx-yellow-900: var(--color-yellow-100);
+}
+
+/* ── Role-aware colour utilities ──────────────────────────────────────────
+   Tailwind still emits its own rule for each class; ours come right after with
+   the same specificity, so they win, and only where a --color-dk* token exists.
+
+   Two things about Tailwind's @utility that this block depends on (verified on
+   4.2.2, keep in mind when editing):
+   1. Only two definitions per root (bg-*, text-*) are reliable. A definition
+      that can't handle a candidate's shape (named vs [arbitrary], with vs
+      without a /modifier) can stop the ones after it, so each shape has to be
+      handled by the first or second definition.
+   2. Give a definition ONE colour declaration per shape — two declarations for
+      the same property make Tailwind sort ours before the built-in rule. */
+
+/* bg-white/NN and bg-green-50/NN. Surfaces flip to the dark surface; low
+   opacities (≤ 34 — the "glass" chips on dark hero panels) stay white so they
+   still read as glass. */
+@utility bg-* {
+  background-color: color-mix(in oklab, color-mix(in oklab, #fff calc(clamp(0, (35 - --modifier(integer)) * 100, 100) * 1%), --value(--color-dkbg-*)) calc(--modifier(integer) * 1%), transparent);
+}
+@utility bg-* {
+  background-color: --value(--color-dkbg-*);
+}
+
+/* text-green-900, text-gray-500/70 … flip in dark. The same definition also
+   makes text-[13px] / text-[0.8rem] follow the font-size setting. */
+@utility text-* {
+  font-size: calc(--value([length]) * var(--font-scale, 1));
+  color: color-mix(in oklab, --value(--color-dktx-*) calc(--modifier(integer) * 1%), transparent);
+}
+@utility text-* {
+  color: --value(--color-dktx-*);
+}
+
+/* border-green-800 etc. — a dark accent outline is invisible on a dark surface */
+@utility border-* {
+  border-color: color-mix(in oklab, --value(--color-dkbd-*) calc(--modifier(integer) * 1%), transparent);
+}
+@utility border-* {
+  border-color: --value(--color-dkbd-*);
+}
+
+/* ── Inline styles that Tailwind can't reach ──────────────────────────────
+   Some components set brand colours in style={{ … }}. React writes them as
+   "color:#0d2b1a" on the server and "color: rgb(13, 43, 26)" after a client
+   render, so both spellings are matched. */
+html.dark [style*="rgba(30,80,50"],
+html.dark [style*="rgba(30, 80, 50"],
+html.dark [style*="rgba(26,74,46"],
+html.dark [style*="rgba(26, 74, 46"] {
+  border-color: var(--gt-line) !important;
+}
+html.dark [style^="color:#0d2b1a"], html.dark [style*=";color:#0d2b1a"],
+html.dark [style^="color: rgb(13, 43, 26)"], html.dark [style*="; color: rgb(13, 43, 26)"],
+html.dark [style^="color:#111a14"], html.dark [style*=";color:#111a14"],
+html.dark [style^="color: rgb(17, 26, 20)"], html.dark [style*="; color: rgb(17, 26, 20)"] {
+  color: var(--gt-fg-strong) !important;
+}
+html.dark [style^="color:#1a4a2e"], html.dark [style*=";color:#1a4a2e"],
+html.dark [style^="color: rgb(26, 74, 46)"], html.dark [style*="; color: rgb(26, 74, 46)"] {
+  color: var(--accent-200) !important;
+}
+html.dark [style^="color:#4a6357"], html.dark [style*=";color:#4a6357"],
+html.dark [style^="color: rgb(74, 99, 87)"], html.dark [style*="; color: rgb(74, 99, 87)"] {
+  color: var(--color-text-muted) !important;
+}

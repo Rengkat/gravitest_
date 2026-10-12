@@ -1,0 +1,264 @@
+POST http://localhost:5000/api/v1/users/bulk
+accept-encoding: gzip, deflate, br
+accept: */*
+authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhMTdjMWU5Zi1mMjI3LTQ1MTEtYTc2Mi00MDlmMzAwMDU0N2YiLCJyb2xlIjoic3VwZXJfYWRtaW4iLCJqdGkiOiJjODJkZmUxN2ZhOWY2Yzk4YjkyMGUwM2NmOWNjMDRlM2FhMjhlOTU1NGNhZmI1ZjJkNjdmMzc0NDQwZmZkZjIwIiwiaWF0IjoxNzc5MDQ1Mzg3LCJleHAiOjE3NzkwNDg5ODcsImF1ZCI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMCIsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMCJ9.kldoLYmkd357vZMEG4RcHrbqIqt4_pt1Iwz1blUoDTY
+content-length: 3983
+content-type: application/json
+user-agent: httpyac
+
+{
+  "skipDuplicates": true,
+  "users": [
+    {
+      "firstName": "Chukwuemeka",
+      "lastName": "Okonkwo",
+      "email": "chukwuemeka.okonkwo@gmail.com",
+      "phoneNumber": "+2348031234567",
+      "role": "student",
+      "stateOfResidence": "Anambra",
+      "lga": "Onitsha"
+    },
+    {
+      "firstName": "Fatima",
+      "lastName": "Aliyu",
+      "email": "fatima.aliyu@gmail.com",
+      "phoneNumber": "+2348056789012",
+      "role": "student",
+      "stateOfResidence": "Kano",
+      "lga": "Nassarawa"
+    },
+    {
+      "firstName": "Adaeze",
+      "lastName": "Nwosu",
+      "email": "adaeze.nwosu@gmail.com",
+      "phoneNumber": "+2348098765432",
+      "role": "student",
+      "stateOfResidence": "Imo",
+      "lga": "Owerri Municipal"
+    },
+    {
+      "firstName": "Babatunde",
+      "lastName": "Fashola",
+      "email": "babatunde.fashola@gmail.com",
+      "phoneNumber": "+2348012345678",
+      "role": "student",
+      "stateOfResidence": "Lagos",
+      "lga": "Ikeja"
+    },
+    {
+      "firstName": "Ngozi",
+      "lastName": "Eze",
+      "email": "ngozi.eze@gmail.com",
+      "phoneNumber": "+2347061234567",
+      "role": "student",
+      "stateOfResidence": "Enugu",
+      "lga": "Enugu North"
+    },
+    {
+      "firstName": "Yusuf",
+      "lastName": "Garba",
+      "email": "yusuf.garba@gmail.com",
+      "phoneNumber": "+2347034567890",
+      "role": "student",
+      "stateOfResidence": "Kaduna",
+      "lga": "Kaduna North"
+    },
+    {
+      "firstName": "Blessing",
+      "lastName": "Okoro",
+      "email": "blessing.okoro@gmail.com",
+      "phoneNumber": "+2348123456789",
+      "role": "student",
+      "stateOfResidence": "Rivers",
+      "lga": "Port Harcourt"
+    },
+    {
+      "firstName": "Taiwo",
+      "lastName": "Adeleke",
+      "email": "taiwo.adeleke@gmail.com",
+      "phoneNumber": "+2348145678901",
+      "role": "student",
+      "stateOfResidence": "Osun",
+      "lga": "Osogbo"
+    },
+    {
+      "firstName": "Chidi",
+      "lastName": "Nnamdi",
+      "email": "chidi.nnamdi@gmail.com",
+      "phoneNumber": "+2348167890123",
+      "role": "student",
+      "stateOfResidence": "Abia",
+      "lga": "Aba North"
+    },
+    {
+      "firstName": "Amina",
+      "lastName": "Ibrahim",
+      "email": "amina.ibrahim@gmail.com",
+      "phoneNumber": "+2347089012345",
+      "role": "student",
+      "stateOfResidence": "Adamawa",
+      "lga": "Yola North"
+    },
+    {
+      "firstName": "Segun",
+      "lastName": "Adeyemi",
+      "email": "segun.adeyemi@gmail.com",
+      "phoneNumber": "+2348190123456",
+      "role": "student",
+      "stateOfResidence": "Oyo",
+      "lga": "Ibadan North"
+    },
+    {
+      "firstName": "Chisom",
+      "lastName": "Uchenna",
+      "email": "chisom.uchenna@gmail.com",
+      "phoneNumber": "+2348023456789",
+      "role": "student",
+      "stateOfResidence": "Anambra",
+      "lga": "Awka South"
+    },
+    {
+      "firstName": "Musa",
+      "lastName": "Danladi",
+      "email": "musa.danladi@gmail.com",
+      "phoneNumber": "+2347045678901",
+      "role": "student",
+      "stateOfResidence": "Plateau",
+      "lga": "Jos North"
+    },
+    {
+      "firstName": "Funke",
+      "lastName": "Bello",
+      "email": "funke.bello@gmail.com",
+      "phoneNumber": "+2348134567890",
+      "role": "student",
+      "stateOfResidence": "Kwara",
+      "lga": "Ilorin West"
+    },
+    {
+      "firstName": "Obinna",
+      "lastName": "Chukwu",
+      "email": "obinna.chukwu@gmail.com",
+      "phoneNumber": "+2348156789012",
+      "role": "student",
+      "stateOfResidence": "Ebonyi",
+      "lga": "Abakaliki"
+    },
+    {
+      "firstName": "Zainab",
+      "lastName": "Usman",
+      "email": "zainab.usman@gmail.com",
+      "phoneNumber": "+2347078901234",
+      "role": "student",
+      "stateOfResidence": "Zamfara",
+      "lga": "Gusau"
+    }
+  ]
+}
+
+HTTP/1.1 200 OK
+connection: close
+content-length: 1415
+content-type: application/json; charset=utf-8
+date: Sun, 17 May 2026 19:19:21 GMT
+etag: W/"587-xkY8w/CPNpx3PFYM0AJ3vmnheLE"
+x-powered-by: Express
+
+{
+  "created": 16,
+  "skipped": 0,
+  "failed": 0,
+  "errors": [],
+  "generatedPasswords": [
+    {
+      "identifier": "chukwuemeka.okonkwo@gmail.com",
+      "temporaryPassword": "Gravitest@20263hfhX8"
+    },
+    {
+      "identifier": "adaeze.nwosu@gmail.com",
+      "temporaryPassword": "Gravitest@2026!tf68k"
+    },
+    {
+      "identifier": "babatunde.fashola@gmail.com",
+      "temporaryPassword": "Gravitest@2026SR7CKe"
+    },
+    {
+      "identifier": "fatima.aliyu@gmail.com",
+      "temporaryPassword": "Gravitest@2026wfURB@"
+    },
+    {
+      "identifier": "ngozi.eze@gmail.com",
+      "temporaryPassword": "Gravitest@2026D#Ujv4"
+    },
+    {
+      "identifier": "yusuf.garba@gmail.com",
+      "temporaryPassword": "Gravitest@2026f#HzGJ"
+    },
+    {
+      "identifier": "blessing.okoro@gmail.com",
+      "temporaryPassword": "Gravitest@2026qZerhy"
+    },
+    {
+      "identifier": "taiwo.adeleke@gmail.com",
+      "temporaryPassword": "Gravitest@2026Ucsxaj"
+    },
+    {
+      "identifier": "amina.ibrahim@gmail.com",
+      "temporaryPassword": "Gravitest@2026ksbjU4"
+    },
+    {
+      "identifier": "chidi.nnamdi@gmail.com",
+      "temporaryPassword": "Gravitest@2026dkyC9r"
+    },
+    {
+      "identifier": "segun.adeyemi@gmail.com",
+      "temporaryPassword": "Gravitest@2026jBjFze"
+    },
+    {
+      "identifier": "chisom.uchenna@gmail.com",
+      "temporaryPassword": "Gravitest@2026gccgPu"
+    },
+    {
+      "identifier": "musa.danladi@gmail.com",
+      "temporaryPassword": "Gravitest@2026JRSTnF"
+    },
+    {
+      "identifier": "funke.bello@gmail.com",
+      "temporaryPassword": "Gravitest@20268nfqgs"
+    },
+    {
+      "identifier": "obinna.chukwu@gmail.com",
+      "temporaryPassword": "Gravitest@2026aKc@!A"
+    },
+    {
+      "identifier": "zainab.usman@gmail.com",
+      "temporaryPassword": "Gravitest@2026nqb!@a"
+    }
+  ]
+}
+
+
+{
+  "user": {
+    "id": "cd8947fc-920c-4acf-9c40-b01f847f20a4",
+    "firstName": "Chukwuemeka",
+    "lastName": "Okonkwo",
+    "middleName": null,
+    "fullName": "Chukwuemeka Okonkwo",
+    "email": "chukwuemeka.okonko@gmail.com",
+    "phoneNumber": "2348031234567",
+    "role": "student",
+    "isActive": true,
+    "isEmailVerified": false,
+    "isPhoneVerified": false,
+    "avatarUrl": null,
+    "dateOfBirth": null,
+    "gender": null,
+    "stateOfResidence": "Anambra",
+    "lga": "Onitsha",
+    "lastLoginAt": null,
+    "createdAt": "2026-05-17T19:24:06.357Z",
+    "updatedAt": "2026-05-17T19:24:06.357Z"
+  },
+  "temporaryPassword": "Gravitest@2026QytyhM"
+}

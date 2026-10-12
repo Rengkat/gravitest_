@@ -1,0 +1,382 @@
+@baseUrl = http://localhost:5000/api/v1
+@contentType = application/json
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhMTdjMWU5Zi1mMjI3LTQ1MTEtYTc2Mi00MDlmMzAwMDU0N2YiLCJyb2xlIjoic3VwZXJfYWRtaW4iLCJqdGkiOiJhNmY3MTU4OWJiODQ3MzliODBmOTFjMzdjYzAxYjY5YmQ4ZjhjNDY1OTYwMjk5NzFkNGMyNzk2MDcxODlmMjJiIiwiaWF0IjoxNzc5NjMzNTM1LCJleHAiOjE3Nzk2MzcxMzUsImF1ZCI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMCIsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMCJ9.dJV-P7KwlREeN4aH3mQ3QUlau4yXlOa3KIlcma7Fe0Y
+
+### ─── 1. CREATE MCQ QUESTION (WAEC Mathematics) ──────────────────────────────
+POST {{baseUrl}}/questions
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "examType": "waec",
+  "subject": "mathematics",
+  "year": 2020,
+  "questionText": "If 2x + 3 = 11, find the value of x.",
+  "difficulty": "easy",
+  "type": "mcq",
+  "topic": "Algebra",
+  "isActive": false,
+  "options": [
+    { "label": "A", "text": "3", "order": 0 },
+    { "label": "B", "text": "4", "order": 1 },
+    { "label": "C", "text": "5", "order": 2 },
+    { "label": "D", "text": "6", "order": 3 }
+  ],
+  "answer": { "correctLabel": "B" },
+  "explanations": [
+    {
+      "text": "2x + 3 = 11 → 2x = 11 - 3 → 2x = 8 → x = 4. Therefore the answer is B (4).",
+      "videoUrl": null,
+      "imageUrl": null
+    }
+  ]
+}
+
+### ─── 2. CREATE MCQ QUESTION (JAMB Physics) ──────────────────────────────────
+POST {{baseUrl}}/questions
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+{
+  "examType": "jamb",
+  "subject": "physics",
+  "year": 2021,
+  "questionText": "Which of the following is a vector quantity?",
+  "difficulty": "easy",
+  "type": "mcq",
+  "topic": "Scalar and Vector Quantities",
+  "isActive": false,
+  "options": [
+    { "label": "A", "text": "Mass", "order": 0 },
+    { "label": "B", "text": "Temperature", "order": 1 },
+    { "label": "C", "text": "Velocity", "order": 2 },
+    { "label": "D", "text": "Speed", "order": 3 }
+  ],
+  "answer": { "correctLabel": "C" },
+  "explanations": [
+    {
+      "text": "Velocity is a vector quantity because it has both magnitude and direction. Mass, temperature, and speed are scalar quantities.",
+      "videoUrl": null,
+      "imageUrl": null
+    }
+  ]
+}
+
+### ─── 3. CREATE MCQ QUESTION (WAEC Chemistry - Medium) ───────────────────────
+POST {{baseUrl}}/questions
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "examType": "waec",
+  "subject": "chemistry",
+  "year": 2019,
+  "questionText": "What is the oxidation state of sulphur in H₂SO₄?",
+  "difficulty": "medium",
+  "type": "mcq",
+  "topic": "Oxidation and Reduction",
+  "isActive": false,
+  "options": [
+    { "label": "A", "text": "+2", "order": 0 },
+    { "label": "B", "text": "+4", "order": 1 },
+    { "label": "C", "text": "+6", "order": 2 },
+    { "label": "D", "text": "-2", "order": 3 }
+  ],
+  "answer": { "correctLabel": "C" },
+  "explanations": [
+    {
+      "text": "In H₂SO₄: H is +1 (×2 = +2), O is -2 (×4 = -8). So S must be +6 to balance: +2 + S + (-8) = 0 → S = +6.",
+      "videoUrl": null,
+      "imageUrl": null
+    }
+  ]
+}
+
+### ─── 4. CREATE MCQ QUESTION (JAMB English - Hard) ──────────────────────────
+POST {{baseUrl}}/questions
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "examType": "jamb",
+  "subject": "english",
+  "year": 2022,
+  "questionText": "Choose the word that is nearest in meaning to the word GARRULOUS.",
+  "difficulty": "hard",
+  "type": "mcq",
+  "topic": "Vocabulary",
+  "isActive": false,
+  "options": [
+    { "label": "A", "text": "Silent", "order": 0 },
+    { "label": "B", "text": "Talkative", "order": 1 },
+    { "label": "C", "text": "Aggressive", "order": 2 },
+    { "label": "D", "text": "Timid", "order": 3 }
+  ],
+  "answer": { "correctLabel": "B" },
+  "explanations": [
+    {
+      "text": "GARRULOUS means excessively talkative, especially on trivial matters. The closest synonym is TALKATIVE.",
+      "videoUrl": null,
+      "imageUrl": null
+    }
+  ]
+}
+
+### ─── 5. CREATE THEORY QUESTION (WAEC Biology) ──────────────────────────────
+POST {{baseUrl}}/questions
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "examType": "waec",
+  "subject": "biology",
+  "year": 2020,
+  "questionNumber": "1a",
+  "questionText": "State THREE differences between mitosis and meiosis.",
+  "difficulty": "medium",
+  "type": "theory",
+  "topic": "Cell Division",
+  "isActive": false,
+  "explanations": [
+    {
+      "text": "Mitosis: (1) Produces 2 daughter cells; (2) Daughter cells are diploid (2n); (3) Occurs in somatic cells. Meiosis: (1) Produces 4 daughter cells; (2) Daughter cells are haploid (n); (3) Occurs in reproductive cells.",
+      "videoUrl": null,
+      "imageUrl": null
+    }
+  ]
+}
+
+### ─── 6. CREATE MCQ QUESTION (NECO Government) ──────────────────────────────
+POST {{baseUrl}}/questions
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "examType": "neco",
+  "subject": "government",
+  "year": 2021,
+  "questionText": "The 1999 Constitution of Nigeria established which type of government?",
+  "difficulty": "easy",
+  "type": "mcq",
+  "topic": "Nigerian Constitution",
+  "isActive": false,
+  "options": [
+    { "label": "A", "text": "Unitary government", "order": 0 },
+    { "label": "B", "text": "Federal government", "order": 1 },
+    { "label": "C", "text": "Confederate government", "order": 2 },
+    { "label": "D", "text": "Monarchical government", "order": 3 }
+  ],
+  "answer": { "correctLabel": "B" },
+  "explanations": [
+    {
+      "text": "The 1999 Constitution of Nigeria established a Federal system of government with power shared between the Federal, State, and Local Government levels.",
+      "videoUrl": null,
+      "imageUrl": null
+    }
+  ]
+}
+
+### ─── 7. CREATE MCQ QUESTION ────────────────────────────────
+POST {{baseUrl}}/questions
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+{
+  "examType": "waec",
+  "subject": "mathematics",
+  "year": 2025,
+  "questionText": "Find the simple interest on ₦50,000 at 8% per annum for 3 years.",
+  "difficulty": "medium",
+  "type": "mcq",
+  "topic": "Simple Interest",
+  "isActive": false,
+  "options": [
+    { "label": "A", "text": "₦10,000", "order": 0 },
+    { "label": "B", "text": "₦12,000", "order": 1 },
+    { "label": "C", "text": "₦14,000", "order": 2 },
+    { "label": "D", "text": "₦15,000", "order": 3 }
+  ],
+  "answer": { "correctLabel": "B" },
+  "explanations": [
+    {
+      "text": "SI = (P × R × T) / 100 = (50000 × 8 × 3) / 100 = 1,200,000 / 100 = ₦12,000.",
+      "videoUrl": null,
+      "imageUrl": null
+    }
+  ]
+}
+
+### ─── 8. PUBLISH A QUESTION ──────────────────────────────────────────────────
+### Replace :id with a real question UUID from the create responses above
+@questionId = f018c709-4e30-4ff7-b71f-fc5c4eec725c
+
+PATCH {{baseUrl}}/questions/{{questionId}}/publish
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+### ─── 9. UNPUBLISH A QUESTION ───────────────────────────────────────────────
+PATCH {{baseUrl}}/questions/{{questionId}}/unpublish
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 10. GET ALL QUESTIONS (default - platform bank) ───────────────────────
+GET {{baseUrl}}/questions
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 11. FILTER BY EXAM TYPE + SUBJECT ─────────────────────────────────────
+GET {{baseUrl}}/questions?examType=waec&subject=mathematics
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 12. FILTER BY YEAR + DIFFICULTY ──────────────────────────────────────
+GET {{baseUrl}}/questions?year=2020&difficulty=easy&isActive=false
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 13. SEARCH BY TEXT ────────────────────────────────────────────────────
+GET {{baseUrl}}/questions?search=oxidation&page=1&limit=10
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 14. FILTER THEORY QUESTIONS ──────────────────────────────────────────
+GET {{baseUrl}}/questions?type=theory
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 15. GET ONE QUESTION ──────────────────────────────────────────────────
+GET {{baseUrl}}/questions/{{questionId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 16. UPDATE QUESTION TEXT ─────────────────────────────────────────────
+PATCH {{baseUrl}}/questions/{{questionId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "questionText": "If 2x + 3 = 11, what is the value of x? (Updated)",
+  "difficulty": "medium"
+}
+
+### ─── 17. UPDATE OPTIONS + ANSWER (atomic replace) ─────────────────────────
+PATCH {{baseUrl}}/questions/{{questionId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "options": [
+    { "label": "A", "text": "2", "order": 0 },
+    { "label": "B", "text": "4", "order": 1 },
+    { "label": "C", "text": "6", "order": 2 },
+    { "label": "D", "text": "8", "order": 3 }
+  ],
+  "answer": { "correctLabel": "B" }
+}
+
+### ─── 18. DUPLICATE A QUESTION ─────────────────────────────────────────────
+POST {{baseUrl}}/questions/{{questionId}}/duplicate
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+### ─── 19. BULK TOGGLE ACTIVE ────────────────────────────────────────────────
+### Replace UUIDs with real question IDs
+PATCH {{baseUrl}}/questions/bulk/active
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "ids": [
+    "48226483-f423-414d-b682-1b895ed75467",
+    "ebc37a41-ff80-4bf2-9a17-23c1b4833805",
+    "b46ac2f0-393a-4da5-ae6c-09f9ffefcb2a"
+  ],
+  "isActive": true
+}
+
+### ─── 20. BULK IMPORT ────────────────────────────────────────────────────────
+POST {{baseUrl}}/questions/bulk/import
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "questions": [
+    {
+      "examType": "jamb",
+      "subject": "mathematics",
+      "year": 2018,
+      "questionText": "Simplify: (x² - 9) / (x - 3)",
+      "difficulty": "medium",
+      "type": "mcq",
+      "topic": "Algebraic Fractions",
+      "options": [
+        { "label": "A", "text": "x - 3", "order": 0 },
+        { "label": "B", "text": "x + 3", "order": 1 },
+        { "label": "C", "text": "x² - 3", "order": 2 },
+        { "label": "D", "text": "x + 9", "order": 3 }
+      ],
+      "answer": { "correctLabel": "B" },
+      "explanations": [
+        { "text": "(x² - 9) / (x - 3) = (x+3)(x-3) / (x-3) = x + 3" }
+      ]
+    },
+    {
+      "examType": "jamb",
+      "subject": "mathematics",
+      "year": 2018,
+      "questionText": "If log₁₀ 2 = 0.3010, find log₁₀ 8.",
+      "difficulty": "hard",
+      "type": "mcq",
+      "topic": "Logarithms",
+      "options": [
+        { "label": "A", "text": "0.6020", "order": 0 },
+        { "label": "B", "text": "0.9030", "order": 1 },
+        { "label": "C", "text": "1.2040", "order": 2 },
+        { "label": "D", "text": "2.4080", "order": 3 }
+      ],
+      "answer": { "correctLabel": "B" },
+      "explanations": [
+        { "text": "log₁₀ 8 = log₁₀ 2³ = 3 × log₁₀ 2 = 3 × 0.3010 = 0.9030" }
+      ]
+    }
+  ]
+}
+
+### ─── 21. GET BANK STATS (platform) ─────────────────────────────────────────
+GET {{baseUrl}}/questions/stats
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 22. SESSION POOL (for practice) ──────────────────────────────────────
+POST {{baseUrl}}/questions/session-pool
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "examType": "waec",
+  "subjects": ["mathematics"],
+  "difficulty": "easy",
+  "type": "mcq",
+  "limit": 10,
+  "shuffled": true
+}
+
+### ─── 24. VERIFY ANSWER ──────────────────────────────────────────────────────
+POST {{baseUrl}}/questions/{{questionId}}/verify-answer
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+{
+  "selectedLabel": "B"
+}
+
+### ─── 25. BULK DELETE ────────────────────────────────────────────────────────
+DELETE {{baseUrl}}/questions/bulk
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "ids": [
+    "REPLACE_WITH_UUID_TO_DELETE"
+  ]
+}
+
+### ─── 26. DELETE ONE QUESTION ───────────────────────────────────────────────
+DELETE {{baseUrl}}/questions/{{questionId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}

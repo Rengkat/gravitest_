@@ -1,0 +1,11 @@
+{{#> layouts/base title="Your two-factor authentication code" subject="Two-factor authentication code — Gravitest"}}
+
+  <p style="font-size: 15px; color: #3f3f46; line-height: 1.7; margin: 0 0 8px;">
+    Use the code below to complete your sign-in.
+  </p>
+
+  {{> otp-card otpCode=otpCode expiryMinutes=expiryMinutes}}
+
+  {{> info-alert message="Never share this code with anyone. Gravitest will never ask for your authentication code by phone or email." type="neutral"}}
+
+{{/layouts/base}}

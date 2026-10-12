@@ -1,0 +1,11 @@
+{{#> layouts/base title="Account restored" subject="Your account has been restored — Gravitest"}}
+
+  <p style="font-size: 15px; color: #3f3f46; line-height: 1.7; margin: 0 0 8px;">
+    Your Gravitest account has been successfully restored. You can now sign in and pick up where you left off.
+  </p>
+
+  {{> info-alert message="All your previous progress and data have been retained." type="neutral"}}
+
+  {{> action-button buttonText="Sign in to your account" buttonUrl=loginUrl}}
+
+{{/layouts/base}}

@@ -1,0 +1,540 @@
+@baseUrl = http://localhost:5000/api/v1
+@contentType = application/json
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhMTdjMWU5Zi1mMjI3LTQ1MTEtYTc2Mi00MDlmMzAwMDU0N2YiLCJyb2xlIjoic3VwZXJfYWRtaW4iLCJqdGkiOiJiZjdjMTQ0YjIzNmQ4YWE2ZWNiYjgyMDc2YTNjY2VlYTczMTdlMDI2MjcwYjUwYzg0ZDAyOTMwMGY5ZTBlOTE5IiwiaWF0IjoxNzgwMzE4Nzk1LCJleHAiOjE3ODAzMjIzOTUsImF1ZCI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMCIsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMCJ9.uFq7bG7CRosk0JT0BfB7R6-umfpHXAvjWN9hdIbSsbk
+
+### Set this after creating content — replace with real UUID from response
+@contentId = REPLACE_WITH_CONTENT_UUID
+@userId    = a17c1e9f-f227-4511-a762-409f3000547f
+
+
+# =============================================================================
+#  SECTION A — ADMIN: CREATE CONTENT
+#  All create requests produce isPublished: false (explicit publish step needed)
+# =============================================================================
+
+### ─── 1. CREATE FREE E-BOOK (Mathematics, WAEC, Secondary) ─────────────────
+POST {{baseUrl}}/library
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "title": "Complete WAEC Mathematics Guide 2024",
+  "description": "A comprehensive e-book covering all WAEC Mathematics topics from 2010–2024. Includes worked examples, past questions, and exam strategies.",
+  "contentType": "ebook",
+  "subject": "mathematics",
+  "topic": "General Mathematics",
+  "fileUrl": "https://cdn.gravitest.com/library/ebooks/waec-maths-2024.pdf",
+  "thumbnailUrl": "https://cdn.gravitest.com/thumbs/waec-maths-2024.jpg",
+  "totalPages": 340,
+  "fileSizeBytes": 8388608,
+  "examTypes": ["waec", "neco"],
+  "classLevels": ["ss2", "ss3"],
+  "isFree": true
+}
+
+### ─── 2. CREATE FREE PAST QUESTIONS PDF (Physics, JAMB) ────────────────────
+POST {{baseUrl}}/library
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "title": "JAMB Physics Past Questions 2015–2024",
+  "description": "10 years of JAMB Physics past questions with full explanations and marking scheme. Ideal for UTME candidates.",
+  "contentType": "ebook",
+  "subject": "physics",
+  "topic": "Mixed Topics",
+  "fileUrl": "https://cdn.gravitest.com/library/pq/jamb-physics-2015-2024.pdf",
+  "thumbnailUrl": "https://cdn.gravitest.com/thumbs/jamb-physics-pq.jpg",
+  "totalPages": 210,
+  "fileSizeBytes": 5242880,
+  "examTypes": ["jamb"],
+  "classLevels": ["ss3"],
+  "isFree": true
+}
+
+### ─── 3. CREATE PREMIUM E-BOOK (Chemistry, Tier-Gated) ─────────────────────
+POST {{baseUrl}}/library
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "title": "Advanced Organic Chemistry — WAEC & JAMB Master Class",
+  "description": "In-depth organic chemistry resource covering nomenclature, reactions, and industrial applications. Premium content for serious students.",
+  "contentType": "ebook",
+  "subject": "chemistry",
+  "topic": "Organic Chemistry",
+  "fileUrl": "https://cdn.gravitest.com/library/ebooks/advanced-organic-chem.pdf",
+  "thumbnailUrl": "https://cdn.gravitest.com/thumbs/organic-chem.jpg",
+  "totalPages": 480,
+  "fileSizeBytes": 12582912,
+  "examTypes": ["waec", "jamb"],
+  "classLevels": ["ss2", "ss3"],
+  "requiredTier": "premium"
+}
+
+### ─── 4. CREATE PAY-PER-ITEM VIDEO (Mathematics Tutorial) ──────────────────
+### priceKobo: 150000 = ₦1,500
+POST {{baseUrl}}/library
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "title": "JAMB Mathematics — Sequences & Series Video Masterclass",
+  "description": "Step-by-step video tutorial on Arithmetic and Geometric Progressions. Dr. Adebayo Ola explains every JAMB question type with worked examples.",
+  "contentType": "video",
+  "subject": "mathematics",
+  "topic": "Sequences and Series",
+  "fileUrl": "https://cdn.gravitest.com/library/videos/maths-sequences-series.mp4",
+  "thumbnailUrl": "https://cdn.gravitest.com/thumbs/sequences-series.jpg",
+  "durationSeconds": 5400,
+  "fileSizeBytes": 524288000,
+  "examTypes": ["jamb"],
+  "classLevels": ["ss3"],
+  "priceKobo": 150000
+}
+
+### ─── 5. CREATE FREE AUDIO LECTURE (Biology) ───────────────────────────────
+POST {{baseUrl}}/library
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "title": "Cell Biology Audio Lecture — Mitosis & Meiosis Explained",
+  "description": "An engaging audio lecture walking through the stages of mitosis and meiosis with clear mnemonics. Perfect for auditory learners preparing for WAEC Biology.",
+  "contentType": "audio",
+  "subject": "biology",
+  "topic": "Cell Division",
+  "fileUrl": "https://cdn.gravitest.com/library/audio/cell-biology-mitosis.mp3",
+  "thumbnailUrl": "https://cdn.gravitest.com/thumbs/cell-biology.jpg",
+  "durationSeconds": 2700,
+  "fileSizeBytes": 43200000,
+  "examTypes": ["waec", "neco"],
+  "classLevels": ["ss2", "ss3"],
+  "isFree": true
+}
+
+### ─── 6. CREATE PREMIUM VIDEO (English — Comprehension Strategies) ──────────
+### requiredTier: "standard" — accessible from standard subscription upward
+POST {{baseUrl}}/library
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "title": "WAEC English — Comprehension Passages & Summary Mastery",
+  "description": "A structured video course on tackling WAEC English comprehension passages, summary writing, and the letter-writing section. Covers 2018–2023 paper patterns.",
+  "contentType": "video",
+  "subject": "english",
+  "topic": "Comprehension and Summary",
+  "fileUrl": "https://cdn.gravitest.com/library/videos/waec-english-comprehension.mp4",
+  "thumbnailUrl": "https://cdn.gravitest.com/thumbs/english-comprehension.jpg",
+  "durationSeconds": 7200,
+  "fileSizeBytes": 734003200,
+  "examTypes": ["waec"],
+  "classLevels": ["ss2", "ss3"],
+  "requiredTier": "standard"
+}
+
+### ─── 7. CREATE FREE DOCUMENT (Government Study Notes) ─────────────────────
+POST {{baseUrl}}/library
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "title": "Nigerian Government — 1999 Constitution Summary Notes",
+  "description": "Concise summary notes on the 1999 Constitution of Nigeria. Covers the three arms of government, fundamental human rights, and federalism concepts.",
+  "contentType": "document",
+  "subject": "government",
+  "topic": "Nigerian Constitution",
+  "fileUrl": "https://cdn.gravitest.com/library/docs/1999-constitution-summary.pdf",
+  "thumbnailUrl": "https://cdn.gravitest.com/thumbs/govt-notes.jpg",
+  "totalPages": 45,
+  "fileSizeBytes": 2097152,
+  "examTypes": ["waec", "neco", "jamb"],
+  "classLevels": ["ss1", "ss2", "ss3"],
+  "isFree": true
+}
+
+### ─── 8. CREATE PAY-PER-ITEM PAST QUESTIONS (Economics) ────────────────────
+### priceKobo: 50000 = ₦500
+POST {{baseUrl}}/library
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "title": "WAEC Economics Past Questions 2010–2024 (With Full Marking Scheme)",
+  "description": "The most comprehensive Economics past question compilation for WAEC. Includes the official marking scheme for theory sections and model answers for essay questions.",
+  "contentType": "past_question",
+  "subject": "economics",
+  "topic": "Mixed Topics",
+  "fileUrl": "https://cdn.gravitest.com/library/pq/waec-economics-2010-2024.pdf",
+  "thumbnailUrl": "https://cdn.gravitest.com/thumbs/econs-pq.jpg",
+  "totalPages": 560,
+  "fileSizeBytes": 15728640,
+  "examTypes": ["waec"],
+  "classLevels": ["ss3"],
+  "priceKobo": 50000
+}
+
+### ─── 9. CREATE PROFESSIONAL CONTENT — ICAN (Enterprise-Tier) ──────────────
+POST {{baseUrl}}/library
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "title": "ICAN Foundation Level — Financial Accounting Study Pack",
+  "description": "Comprehensive study pack for ICAN Foundation Financial Accounting. Covers double-entry bookkeeping, trial balance, final accounts, and ICAN-specific question styles.",
+  "contentType": "ebook",
+  "subject": "accounting",
+  "topic": "Financial Accounting",
+  "fileUrl": "https://cdn.gravitest.com/library/ebooks/ican-foundation-financial-acct.pdf",
+  "thumbnailUrl": "https://cdn.gravitest.com/thumbs/ican-financial-acct.jpg",
+  "totalPages": 620,
+  "fileSizeBytes": 20971520,
+  "examTypes": ["ican"],
+  "classLevels": [],
+  "requiredTier": "enterprise"
+}
+
+### ─── 10. CREATE FREE IMAGE RESOURCE (Diagram) ─────────────────────────────
+POST {{baseUrl}}/library
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "title": "Photosynthesis Diagram — Labelled Chart for SS Biology",
+  "description": "High-resolution labelled diagram of the photosynthesis process. Includes the light-dependent and light-independent reactions. Suitable for SS1–SS3 Biology students.",
+  "contentType": "image",
+  "subject": "biology",
+  "topic": "Photosynthesis",
+  "fileUrl": "https://cdn.gravitest.com/library/images/photosynthesis-diagram.png",
+  "thumbnailUrl": "https://cdn.gravitest.com/thumbs/photosynthesis.jpg",
+  "fileSizeBytes": 3145728,
+  "examTypes": ["waec", "neco"],
+  "classLevels": ["ss1", "ss2"],
+  "isFree": true
+}
+
+
+# =============================================================================
+#  SECTION B — ADMIN: LIST & STATS
+# =============================================================================
+
+### ─── 47. ADMIN LIST ALL (including drafts + inactive) ─────────────────────
+GET {{baseUrl}}/library/admin/all
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 48. ADMIN LIST — filter unpublished only ─────────────────────────────
+GET {{baseUrl}}/library/admin/all?isPublished=false
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 49. ADMIN LIST — filter inactive ─────────────────────────────────────
+GET {{baseUrl}}/library/admin/all?isActive=false
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 50. ADMIN LIST — filter premium tier content ─────────────────────────
+GET {{baseUrl}}/library/admin/all?isFree=false
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 51. ADMIN STATS ───────────────────────────────────────────────────────
+GET {{baseUrl}}/library/admin/stats
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+
+# =============================================================================
+#  SECTION C — ADMIN: PUBLISH / UNPUBLISH / UPDATE / DELETE
+# =============================================================================
+
+### ─── 11. PUBLISH A CONTENT ITEM ───────────────────────────────────────────
+PATCH {{baseUrl}}/library/{{contentId}}/publish
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 12. UNPUBLISH A CONTENT ITEM ─────────────────────────────────────────
+PATCH {{baseUrl}}/library/{{contentId}}/unpublish
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 13. UPDATE METADATA (title + description) ────────────────────────────
+PATCH {{baseUrl}}/library/{{contentId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "title": "Complete WAEC Mathematics Guide 2024 (Revised Edition)",
+  "description": "Updated with 2024 WAEC questions and new chapter on Statistics."
+}
+
+### ─── 14. UPDATE ACCESS MODEL — change from free to pay-per-item ────────────
+### Note: server validates only one of isFree / requiredTier / priceKobo is set
+PATCH {{baseUrl}}/library/cc70e253-73d2-4262-8e18-812d8af89450
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "isFree": false,
+  "priceKobo": 75000
+}
+
+### ─── 15. UPDATE ACCESS MODEL — change to tier-gated ───────────────────────
+PATCH {{baseUrl}}/library/{{contentId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "isFree": false,
+  "requiredTier": "standard"
+}
+
+### ─── 16. TOGGLE ACTIVE (deactivate without deleting) ──────────────────────
+PATCH {{baseUrl}}/library/{{contentId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "isActive": false
+}
+
+### ─── 17. SOFT DELETE (deactivate) ─────────────────────────────────────────
+DELETE {{baseUrl}}/library/{{contentId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+# =============================================================================
+#  SECTION D — ADMIN: GRANT ACCESS MANUALLY
+#  Use after confirming a manual bank transfer or for complimentary access
+# =============================================================================
+
+### ─── 43. GRANT ACCESS — permanent (no expiry) ─────────────────────────────
+POST {{baseUrl}}/library/cc70e253-73d2-4262-8e18-812d8af89450/grant-access
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "userId": "{{userId}}",
+  "paymentId": "MANUAL-PAY-2024-001"
+}
+
+### ─── 44. GRANT ACCESS — with expiry (30-day subscription window) ───────────
+POST {{baseUrl}}/library/{{contentId}}/grant-access
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "userId": "{{userId}}",
+  "paymentId": "PAY-TRX-20240315-ABC",
+  "expiresAt": "2025-12-31T23:59:59.000Z"
+}
+
+### ─── 45. GRANT ACCESS — complimentary (no payment reference) ───────────────
+POST {{baseUrl}}/library/{{contentId}}/grant-access
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "userId": "{{userId}}"
+}
+
+### ─── 46. RE-GRANT ACCESS — extends expiry on re-purchase ───────────────────
+### Same userId + contentId as a previous grant — service refreshes expiresAt
+POST {{baseUrl}}/library/{{contentId}}/grant-access
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "userId": "{{userId}}",
+  "paymentId": "PAY-TRX-20241201-XYZ",
+  "expiresAt": "2026-12-31T23:59:59.000Z"
+}
+
+# =============================================================================
+#  SECTION E — PUBLIC BROWSE (auth needed without route, optional JWT enriches response)
+# =============================================================================
+
+### ─── 18. BROWSE ALL PUBLISHED CONTENT (default) ───────────────────────────
+GET {{baseUrl}}/library
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 19. FILTER BY CONTENT TYPE — ebooks only ─────────────────────────────
+GET {{baseUrl}}/library?contentType=ebook
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 20. FILTER FREE CONTENT ONLY ─────────────────────────────────────────
+GET {{baseUrl}}/library?isFree=true
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 21. FILTER BY SUBJECT ────────────────────────────────────────────────
+GET {{baseUrl}}/library?subject=mathematics
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 22. FILTER BY EXAM TYPE ──────────────────────────────────────────────
+GET {{baseUrl}}/library?examType=jamb
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 23. FILTER BY CLASS LEVEL ────────────────────────────────────────────
+GET {{baseUrl}}/library?classLevel=ss3
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 24. COMBINED FILTER — WAEC + Mathematics + Free ──────────────────────
+GET {{baseUrl}}/library?examType=waec&subject=mathematics&isFree=true
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 25. FULL TEXT SEARCH ─────────────────────────────────────────────────
+GET {{baseUrl}}/library?search=organic%20chemistry
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 26. SORT BY MOST VIEWED ──────────────────────────────────────────────
+GET {{baseUrl}}/library?sortBy=totalViews&sortOrder=DESC
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 27. SORT BY MOST DOWNLOADED ──────────────────────────────────────────
+GET {{baseUrl}}/library?sortBy=totalDownloads&sortOrder=DESC
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 28. PAGINATE — PAGE 2, 5 ITEMS ───────────────────────────────────────
+GET {{baseUrl}}/library?page=2&limit=5
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 29. GET SINGLE CONTENT ITEM METADATA ─────────────────────────────────
+GET {{baseUrl}}/library/{{contentId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+
+# =============================================================================
+#  SECTION G — USER: ACCESS CONTROL
+# =============================================================================
+
+### ─── 30. CHECK ACCESS — free content (expect: hasAccess: true, reason: free)
+GET {{baseUrl}}/library/{{contentId}}/access
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 31. CHECK ACCESS — premium content without subscription
+### (expect: hasAccess: false, reason: no_access)
+### Replace contentId with the UUID of a premium/tier-gated item
+GET {{baseUrl}}/library/{{contentId}}/access
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 32. GET MY ACCESS RECORD (progress, bookmarks, last accessed) ─────────
+GET {{baseUrl}}/library/{{contentId}}/my-access
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 33. GET MY FULL LIBRARY ───────────────────────────────────────────────
+GET {{baseUrl}}/library/me/library
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+
+# =============================================================================
+#  SECTION H — USER: PROGRESS TRACKING
+# =============================================================================
+
+### ─── 34. RECORD VIEW — no progress (just a view event) ────────────────────
+POST {{baseUrl}}/library/access/record
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "contentId": "{{contentId}}",
+  "contentType": "ebook"
+}
+
+### ─── 35. RECORD PROGRESS — ebook at 25% ───────────────────────────────────
+POST {{baseUrl}}/library/access/record
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "contentId": "{{contentId}}",
+  "contentType": "ebook",
+  "progressPercent": 25
+}
+
+### ─── 36. RECORD PROGRESS — video at 60% ───────────────────────────────────
+POST {{baseUrl}}/library/access/record
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "contentId": "{{contentId}}",
+  "contentType": "video",
+  "progressPercent": 60
+}
+
+### ─── 37. RECORD PROGRESS — completed (100%) ───────────────────────────────
+POST {{baseUrl}}/library/access/record
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "contentId": "{{contentId}}",
+  "contentType": "ebook",
+  "progressPercent": 100
+}
+
+
+# =============================================================================
+#  SECTION I — USER: BOOKMARKS
+# =============================================================================
+
+### ─── 38. ADD BOOKMARK — page 47 of an ebook ───────────────────────────────
+POST {{baseUrl}}/library/{{contentId}}/bookmarks
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "position": 47,
+  "note": "Important formula for quadratic equations — memorise this."
+}
+
+### ─── 39. ADD BOOKMARK — video timestamp 1320 seconds (22:00) ───────────────
+POST {{baseUrl}}/library/{{contentId}}/bookmarks
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "position": 1320,
+  "note": "Dr. Adebayo explains the AP general formula here — great example."
+}
+
+### ─── 40. ADD BOOKMARK — no note ───────────────────────────────────────────
+POST {{baseUrl}}/library/{{contentId}}/bookmarks
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "position": 120
+}
+
+### ─── 41. REMOVE BOOKMARK at position 47 ────────────────────────────────────
+DELETE {{baseUrl}}/library/{{contentId}}/bookmarks/47
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+### ─── 42. REMOVE BOOKMARK at position 1320 ─────────────────────────────────
+DELETE {{baseUrl}}/library/{{contentId}}/bookmarks/1320
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+
+
+
+
