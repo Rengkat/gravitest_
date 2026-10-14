@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Check, Monitor, Moon, Sun } from "lucide-react";
+import { updateSettings } from "@/lib/api/settings";
 import {
   FONT_SCALE,
   FONT_SIZE_LABELS,
@@ -15,16 +16,35 @@ import {
 // radiogroup of real <button>s (Tab to the group, Space/Enter to choose).
 
 /**
- * Show the theme / font size the user is choosing on screen immediately,
- * before they press Save. Cleared on unmount, so leaving without saving
- * snaps back to what is actually saved.
+ * Theme and font size are applied AND saved the moment they are picked, so the
+ * choice survives leaving the page. (Previously they were only a preview that
+ * was thrown away on unmount unless "Save Changes" was pressed.)
+ *
+ * 1. commit() updates the device store straight away: the screen changes
+ *    instantly and the value is persisted to localStorage.
+ * 2. The same value is then PATCHed to the account. Requests are queued so a
+ *    fast Dark -> Light click can't be overwritten by a slower, older response.
  */
-export function useAppearancePreview(theme: ThemeMode, fontSize: FontSizeKey) {
-  const setPreview = useAppearanceStore((s) => s.setPreview);
-  useEffect(() => {
-    setPreview({ theme, fontSize });
-  }, [theme, fontSize, setPreview]);
-  useEffect(() => () => setPreview(null), [setPreview]);
+export function useAppearanceAutoSave() {
+  const theme = useAppearanceStore((s) => s.theme);
+  const fontSize = useAppearanceStore((s) => s.fontSize);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+
+  const change = useCallback((patch: { theme?: ThemeMode; fontSize?: FontSizeKey }) => {
+    setSyncError(null);
+    useAppearanceStore.getState().commit(patch);
+    queue.current = queue.current
+      .catch(() => {})
+      .then(() => updateSettings(patch))
+      .catch(() => {
+        setSyncError(
+          "Applied on this device, but couldn't be saved to your account. It may revert on your next sign-in.",
+        );
+      });
+  }, []);
+
+  return { theme, fontSize, change, syncError };
 }
 
 const THEME_OPTIONS: { id: ThemeMode; label: string; icon: typeof Sun; desc: string }[] = [
@@ -91,7 +111,10 @@ export function FontSizePicker({
 }) {
   return (
     <>
-      <div role="radiogroup" aria-label="Font size" className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div
+        role="radiogroup"
+        aria-label="Font size"
+        className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {FONT_OPTIONS.map((opt) => {
           const active = value === opt;
           return (

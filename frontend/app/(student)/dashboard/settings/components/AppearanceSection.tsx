@@ -8,7 +8,7 @@ import {
   AccentReadOnly,
   FontSizePicker,
   ThemeModePicker,
-  useAppearancePreview,
+  useAppearanceAutoSave,
 } from "@/Components/appearance/AppearanceControls";
 
 interface AppearanceSectionProps {
@@ -32,10 +32,12 @@ export default function AppearanceSection({ settings, onChange }: AppearanceSect
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const isDirty = JSON.stringify(local) !== JSON.stringify(settings);
 
-  // Theme and font size take effect on screen as soon as they are picked.
-  useAppearancePreview(local.theme, local.fontSize);
+  // Theme and font size are applied and saved immediately (see
+  // useAppearanceAutoSave), so they are not part of the Save bar's dirty check.
+  const { theme, fontSize, change, syncError } = useAppearanceAutoSave();
+  const strip = (a: AppearanceSettings) => ({ ...a, theme: undefined, fontSize: undefined });
+  const isDirty = JSON.stringify(strip(local)) !== JSON.stringify(strip(settings));
 
   const update = <K extends keyof AppearanceSettings>(key: K, val: AppearanceSettings[K]) => {
     setLocal((prev) => ({ ...prev, [key]: val }));
@@ -47,7 +49,7 @@ export default function AppearanceSection({ settings, onChange }: AppearanceSect
     setIsSaving(true);
     setError(null);
     try {
-      await onChange(local);
+      await onChange({ ...local, theme, fontSize });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch {
@@ -61,7 +63,7 @@ export default function AppearanceSection({ settings, onChange }: AppearanceSect
     <div className="space-y-5">
       {/* Theme */}
       <SettingsCard title="Theme" description="Choose how Gravitest looks on your device">
-        <ThemeModePicker value={local.theme} onChange={(v) => update("theme", v)} />
+        <ThemeModePicker value={theme} onChange={(v) => change({ theme: v })} />
         <p className="text-[11px] text-gray-400 mt-3">
           System follows your device setting. Dark mode applies inside your dashboard.
         </p>
@@ -74,8 +76,14 @@ export default function AppearanceSection({ settings, onChange }: AppearanceSect
 
       {/* Font size */}
       <SettingsCard title="Font Size" description="Adjust the text size across the app">
-        <FontSizePicker value={local.fontSize} onChange={(v) => update("fontSize", v)} />
+        <FontSizePicker value={fontSize} onChange={(v) => change({ fontSize: v })} />
       </SettingsCard>
+
+      {syncError && (
+        <p role="alert" className="text-[12px] text-red-500 font-semibold">
+          {syncError}
+        </p>
+      )}
 
       {/* Dashboard layout */}
       <SettingsCard
@@ -136,7 +144,7 @@ export default function AppearanceSection({ settings, onChange }: AppearanceSect
           visible={isDirty || saved}
           onSave={handleSave}
           onDiscard={() => {
-            setLocal(settings);
+            setLocal({ ...settings, theme, fontSize });
             setSaved(false);
             setError(null);
           }}

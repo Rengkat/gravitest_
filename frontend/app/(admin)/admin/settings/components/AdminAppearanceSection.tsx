@@ -8,7 +8,7 @@ import PlatformAccentCard from "./PlatformAccentCard";
 import {
   FontSizePicker,
   ThemeModePicker,
-  useAppearancePreview,
+  useAppearanceAutoSave,
 } from "@/Components/appearance/AppearanceControls";
 
 interface AdminAppearanceSectionProps {
@@ -35,10 +35,12 @@ export default function AdminAppearanceSection({
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const isDirty = JSON.stringify(local) !== JSON.stringify(settings);
 
-  // Theme and font size take effect on screen as soon as they are picked.
-  useAppearancePreview(local.theme, local.fontSize);
+  // Theme and font size are applied and saved immediately (see
+  // useAppearanceAutoSave), so they are not part of the Save bar's dirty check.
+  const { theme, fontSize, change, syncError } = useAppearanceAutoSave();
+  const strip = (a: AppearanceSettings) => ({ ...a, theme: undefined, fontSize: undefined });
+  const isDirty = JSON.stringify(strip(local)) !== JSON.stringify(strip(settings));
 
   const update = <K extends keyof AppearanceSettings>(key: K, val: AppearanceSettings[K]) => {
     setLocal((prev) => ({ ...prev, [key]: val }));
@@ -50,7 +52,7 @@ export default function AdminAppearanceSection({
     setIsSaving(true);
     setError(null);
     try {
-      await onChange(local);
+      await onChange({ ...local, theme, fontSize });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch {
@@ -67,16 +69,24 @@ export default function AdminAppearanceSection({
 
       {/* Theme (personal) */}
       <SettingsCard title="Admin Theme" description="Choose how the admin dashboard looks for you">
-        <ThemeModePicker value={local.theme} onChange={(v) => update("theme", v)} />
+        <ThemeModePicker value={theme} onChange={(v) => change({ theme: v })} />
         <p className="text-[11px] text-gray-400 mt-3">
           System follows your device setting. This only changes your own view.
         </p>
       </SettingsCard>
 
       {/* Font size (personal) */}
-      <SettingsCard title="Font Size" description="Adjust the text size across the admin panel for you">
-        <FontSizePicker value={local.fontSize} onChange={(v) => update("fontSize", v)} />
+      <SettingsCard
+        title="Font Size"
+        description="Adjust the text size across the admin panel for you">
+        <FontSizePicker value={fontSize} onChange={(v) => change({ fontSize: v })} />
       </SettingsCard>
+
+      {syncError && (
+        <p role="alert" className="text-[12px] text-red-500 font-semibold">
+          {syncError}
+        </p>
+      )}
 
       {/* Dashboard layout */}
       <SettingsCard
@@ -137,7 +147,7 @@ export default function AdminAppearanceSection({
           visible={isDirty || saved}
           onSave={handleSave}
           onDiscard={() => {
-            setLocal(settings);
+            setLocal({ ...settings, theme, fontSize });
             setSaved(false);
             setError(null);
           }}
