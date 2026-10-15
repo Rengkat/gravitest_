@@ -18,13 +18,24 @@ export class GoogleProvider implements AiProvider {
   ) {}
 
   async complete(params: AiCompletionParams): Promise<AiCompletionResult> {
+    if (!this.apiKey) {
+      throw new Error(
+        'Google AI is not configured (API key missing) — set GOOGLE_AI_API_KEY in .env',
+      );
+    }
     const start = Date.now();
+    // Key goes in a header, not the query string, so it can't leak into
+    // access logs, proxies, or error messages that echo the URL.
     const res = await fetch(
-      `${this.baseUrl}/models/${params.modelId}:generateContent?key=${this.apiKey}`,
+      `${this.baseUrl}/models/${params.modelId}:generateContent`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': this.apiKey,
+        },
         body: JSON.stringify(await this.buildBody(params)),
+        signal: AbortSignal.timeout(60_000),
       },
     );
 
@@ -35,7 +46,9 @@ export class GoogleProvider implements AiProvider {
 
     const data = await res.json();
     const text =
-      data.candidates?.[0]?.content?.parts?.map((p: { text: string }) => p.text).join('') ?? '';
+      data.candidates?.[0]?.content?.parts
+        ?.map((p: { text: string }) => p.text)
+        .join('') ?? '';
 
     return {
       text,
@@ -56,7 +69,12 @@ export class GoogleProvider implements AiProvider {
     // (not just a fallback), flag it and I'll implement true streaming.
     const result = await this.complete(params);
     yield { delta: result.text, done: false };
-    yield { delta: '', done: true, tokensInput: result.tokensInput, tokensOutput: result.tokensOutput };
+    yield {
+      delta: '',
+      done: true,
+      tokensInput: result.tokensInput,
+      tokensOutput: result.tokensOutput,
+    };
   }
 
   private async buildBody(params: AiCompletionParams) {
@@ -85,11 +103,17 @@ export class GoogleProvider implements AiProvider {
    * model ignores.
    */
   private async toGeminiParts(
-    content: string | import('../interfaces/ai-provider.interface').AiContentPart[],
-  ): Promise<Array<{ text: string } | { inlineData: { mimeType: string; data: string } }>> {
+    content:
+      | string
+      | import('../interfaces/ai-provider.interface').AiContentPart[],
+  ): Promise<
+    Array<{ text: string } | { inlineData: { mimeType: string; data: string } }>
+  > {
     if (typeof content === 'string') return [{ text: content }];
 
-    const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];
+    const parts: Array<
+      { text: string } | { inlineData: { mimeType: string; data: string } }
+    > = [];
     for (const part of content) {
       if (part.type === 'text') {
         parts.push({ text: part.text });
@@ -100,7 +124,9 @@ export class GoogleProvider implements AiProvider {
         if (!res.ok) continue;
         const mimeType = res.headers.get('content-type') ?? 'image/jpeg';
         const buffer = Buffer.from(await res.arrayBuffer());
-        parts.push({ inlineData: { mimeType, data: buffer.toString('base64') } });
+        parts.push({
+          inlineData: { mimeType, data: buffer.toString('base64') },
+        });
       } catch {
         // Image fetch failed (e.g. R2 not provisioned yet) — skip it
         // rather than fail the whole completion; the model just scores

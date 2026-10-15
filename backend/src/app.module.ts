@@ -140,6 +140,9 @@ const ENV = process.env.NODE_ENV;
         GOOGLE_AI_API_KEY: Joi.string().optional().allow(''),
         OPENAI_API_KEY: Joi.string().optional().allow(''),
         ANTHROPIC_API_KEY: Joi.string().optional().allow(''),
+        DEEPSEEK_API_KEY: Joi.string().optional().allow(''),
+        MISTRAL_API_KEY: Joi.string().optional().allow(''),
+        OPENROUTER_API_KEY: Joi.string().optional().allow(''),
 
         // PAYSTACK — required in production: without these the gateway reports
         // itself unconfigured and customers could not pay, so fail the boot
@@ -150,22 +153,52 @@ const ENV = process.env.NODE_ENV;
           otherwise: Joi.string().optional().allow(''),
         }),
         PAYSTACK_PUBLIC_KEY: Joi.string().optional().allow(''),
-        PAYSTACK_BASE_URL: Joi.string().uri().default('https://api.paystack.co'),
-        PAYSTACK_CALLBACK_URL: Joi.string().uri().when('NODE_ENV', {
-          is: 'production',
-          then: Joi.string().uri({ scheme: ['https'] }).required(),
-          otherwise: Joi.string().uri().optional().allow(''),
-        }),
+        PAYSTACK_BASE_URL: Joi.string()
+          .uri()
+          .default('https://api.paystack.co'),
+        PAYSTACK_CALLBACK_URL: Joi.string()
+          .uri()
+          .when('NODE_ENV', {
+            is: 'production',
+            then: Joi.string()
+              .uri({ scheme: ['https'] })
+              .required(),
+            otherwise: Joi.string().uri().optional().allow(''),
+          }),
 
         // PAYMENT GATEWAYS — Paystack's vars are read directly in
         // config/paystackConfig.ts. OPay (config/opayConfig.ts) is optional:
         // unset = the gateway simply can't be enabled by admins.
         OPAY_ENV: Joi.string().valid('sandbox', 'live').default('sandbox'),
-        OPAY_MERCHANT_ID: Joi.string().when('OPAY_ENV', { is: 'live', then: Joi.string().required(), otherwise: Joi.string().optional().allow('') }),
-        OPAY_PUBLIC_KEY: Joi.string().when('OPAY_ENV', { is: 'live', then: Joi.string().required(), otherwise: Joi.string().optional().allow('') }),
-        OPAY_SECRET_KEY: Joi.string().when('OPAY_ENV', { is: 'live', then: Joi.string().required(), otherwise: Joi.string().optional().allow('') }),
-        OPAY_CALLBACK_URL: Joi.string().when('OPAY_ENV', { is: 'live', then: Joi.string().uri({ scheme: ['https'] }).required(), otherwise: Joi.string().uri().optional().allow('') }),
-        OPAY_RETURN_URL: Joi.string().when('OPAY_ENV', { is: 'live', then: Joi.string().uri({ scheme: ['https'] }).required(), otherwise: Joi.string().uri().optional().allow('') }),
+        OPAY_MERCHANT_ID: Joi.string().when('OPAY_ENV', {
+          is: 'live',
+          then: Joi.string().required(),
+          otherwise: Joi.string().optional().allow(''),
+        }),
+        OPAY_PUBLIC_KEY: Joi.string().when('OPAY_ENV', {
+          is: 'live',
+          then: Joi.string().required(),
+          otherwise: Joi.string().optional().allow(''),
+        }),
+        OPAY_SECRET_KEY: Joi.string().when('OPAY_ENV', {
+          is: 'live',
+          then: Joi.string().required(),
+          otherwise: Joi.string().optional().allow(''),
+        }),
+        OPAY_CALLBACK_URL: Joi.string().when('OPAY_ENV', {
+          is: 'live',
+          then: Joi.string()
+            .uri({ scheme: ['https'] })
+            .required(),
+          otherwise: Joi.string().uri().optional().allow(''),
+        }),
+        OPAY_RETURN_URL: Joi.string().when('OPAY_ENV', {
+          is: 'live',
+          then: Joi.string()
+            .uri({ scheme: ['https'] })
+            .required(),
+          otherwise: Joi.string().uri().optional().allow(''),
+        }),
         OPAY_CANCEL_URL: Joi.string().uri().optional().allow(''),
         OPAY_EXPIRE_MINUTES: Joi.number().min(1).max(1440).default(30),
 
