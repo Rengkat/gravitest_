@@ -17,6 +17,13 @@ import {
 const OPENAI_REASONING_MODEL = /^(gpt-5|gpt-6|o\d)/i;
 const OPENAI_REASONING_HEADROOM = 2000;
 
+// Groq's gpt-oss models also reason before answering and bill that against the
+// completion cap, so a small cap can return an empty `content`. Keep the
+// effort low (tutoring/explanations don't need deep reasoning) and leave
+// headroom for the reasoning tokens that remain.
+const GROQ_REASONING_MODEL = /^openai\/gpt-oss/i;
+const GROQ_REASONING_HEADROOM = 1000;
+
 const COMPLETE_TIMEOUT_MS = 60_000;
 const STREAM_TIMEOUT_MS = 120_000;
 
@@ -54,6 +61,15 @@ export class OpenAiCompatibleProvider implements AiProvider {
 
     const data = await res.json();
     const text = data.choices?.[0]?.message?.content ?? '';
+
+    // Blank output is a failed call (token cap eaten by reasoning, content
+    // filter, provider hiccup) — throw so the router falls back rather than
+    // persisting an empty answer.
+    if (!String(text).trim()) {
+      throw new Error(
+        `${this.providerLabel} returned an empty completion (finish_reason=${data.choices?.[0]?.finish_reason ?? 'unknown'})`,
+      );
+    }
 
     return {
       text,
@@ -145,6 +161,13 @@ export class OpenAiCompatibleProvider implements AiProvider {
         ? cap + OPENAI_REASONING_HEADROOM
         : cap;
       if (!reasoning) body.temperature = temperature;
+    } else if (
+      this.providerLabel === 'Groq' &&
+      GROQ_REASONING_MODEL.test(params.modelId)
+    ) {
+      body.max_tokens = cap + GROQ_REASONING_HEADROOM;
+      body.temperature = temperature;
+      body.reasoning_effort = 'low';
     } else {
       body.max_tokens = cap;
       body.temperature = temperature;

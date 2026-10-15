@@ -1,9 +1,24 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Brain, DollarSign, Activity, RefreshCw, Check, Plus, X, Loader2, Trash2 } from "lucide-react";
+import {
+  Brain,
+  DollarSign,
+  Activity,
+  RefreshCw,
+  Check,
+  Plus,
+  X,
+  Loader2,
+  Trash2,
+} from "lucide-react";
 import * as aiAdminApi from "@/lib/api/ai-admin";
-import type { AiModelConfig, AiFeatureModelMapping, AIFeature } from "@/lib/api/ai-admin";
+import type {
+  AiModelConfig,
+  AiFeatureModelMapping,
+  AIFeature,
+  AIProvider,
+} from "@/lib/api/ai-admin";
 import { extractErrorMessage } from "@/lib/api/client";
 
 const FEATURE_LABELS: Record<AIFeature, string> = {
@@ -18,18 +33,28 @@ const FEATURE_LABELS: Record<AIFeature, string> = {
   feedback_generation: "Feedback Generation",
 };
 
-const PROVIDER_OPTIONS: { value: AIProvider; label: string; examplePlaceholder: string; hint?: string }[] = [
-  { value: "groq", label: "Groq", examplePlaceholder: "llama-3.3-70b-versatile" },
-  { value: "google", label: "Google (Gemini)", examplePlaceholder: "gemini-2.0-flash" },
+const PROVIDER_OPTIONS: {
+  value: AIProvider;
+  label: string;
+  examplePlaceholder: string;
+  hint?: string;
+}[] = [
+  { value: "groq", label: "Groq", examplePlaceholder: "openai/gpt-oss-120b" },
+  { value: "google", label: "Google (Gemini)", examplePlaceholder: "gemini-3.5-flash-lite" },
   { value: "openai", label: "OpenAI", examplePlaceholder: "gpt-4o-mini" },
   { value: "anthropic", label: "Anthropic", examplePlaceholder: "claude-3-5-haiku-20241022" },
-  { value: "deepseek", label: "DeepSeek", examplePlaceholder: "deepseek-chat", hint: "Very low cost per token" },
+  {
+    value: "deepseek",
+    label: "DeepSeek",
+    examplePlaceholder: "deepseek-v4-flash",
+    hint: "Very low cost per token",
+  },
   { value: "mistral", label: "Mistral", examplePlaceholder: "mistral-small-latest" },
   {
     value: "openrouter",
     label: "OpenRouter",
     examplePlaceholder: "meta-llama/llama-3.1-8b-instruct:free",
-    hint: "Aggregator — many models have a genuinely free tier (look for a \":free\" model id)",
+    hint: 'Aggregator — many models have a genuinely free tier (look for a ":free" model id)',
   },
   {
     value: "ollama",
@@ -139,7 +164,10 @@ export function AIModelSelector({ onUpdate }: Props) {
         costOutputPerMillion: parseFloat(newModel.costOutputPerMillion) || 0,
         avgLatencyMs: newModel.avgLatencyMs ? parseInt(newModel.avgLatencyMs, 10) : undefined,
         tags: newModel.tags
-          ? newModel.tags.split(",").map((t) => t.trim()).filter(Boolean)
+          ? newModel.tags
+              .split(",")
+              .map((t) => t.trim())
+              .filter(Boolean)
           : undefined,
         isActive: true,
       });
@@ -154,7 +182,9 @@ export function AIModelSelector({ onUpdate }: Props) {
   };
 
   const handleDeleteModel = async (model: AiModelConfig) => {
-    if (!confirm(`Remove "${model.name}"? Any feature currently routed to it will need reassigning.`)) {
+    if (
+      !confirm(`Remove "${model.name}"? Any feature currently routed to it will need reassigning.`)
+    ) {
       return;
     }
     setDeletingId(model.id);
@@ -188,7 +218,9 @@ export function AIModelSelector({ onUpdate }: Props) {
       )}
 
       {/* Registered models */}
-      <div className="bg-white rounded-2xl border p-6" style={{ borderColor: "rgba(30,80,50,0.08)" }}>
+      <div
+        className="bg-white rounded-2xl border p-6"
+        style={{ borderColor: "rgba(30,80,50,0.08)" }}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-serif text-lg text-green-900">Registered Models</h3>
           <div className="flex items-center gap-3">
@@ -208,11 +240,15 @@ export function AIModelSelector({ onUpdate }: Props) {
           <div className="mb-5 p-4 rounded-xl border border-green-200 bg-cream/30 space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[11px] font-semibold text-green-900 mb-1">Provider</label>
+                <label className="block text-[11px] font-semibold text-green-900 mb-1">
+                  Provider
+                </label>
                 <select
                   title="Provider"
                   value={newModel.provider}
-                  onChange={(e) => setNewModel((n) => ({ ...n, provider: e.target.value as AIProvider }))}
+                  onChange={(e) =>
+                    setNewModel((n) => ({ ...n, provider: e.target.value as AIProvider }))
+                  }
                   className="w-full text-[12px] border border-gray-200 rounded-lg px-2.5 py-2 bg-white focus:outline-none focus:border-green-400">
                   {PROVIDER_OPTIONS.map((p) => (
                     <option key={p.value} value={p.value}>
@@ -222,11 +258,15 @@ export function AIModelSelector({ onUpdate }: Props) {
                 </select>
               </div>
               <div>
-                <label className="block text-[11px] font-semibold text-green-900 mb-1">Model ID (sent to API)</label>
+                <label className="block text-[11px] font-semibold text-green-900 mb-1">
+                  Model ID (sent to API)
+                </label>
                 <input
                   value={newModel.modelId}
                   onChange={(e) => setNewModel((n) => ({ ...n, modelId: e.target.value }))}
-                  placeholder={PROVIDER_OPTIONS.find((p) => p.value === newModel.provider)?.examplePlaceholder}
+                  placeholder={
+                    PROVIDER_OPTIONS.find((p) => p.value === newModel.provider)?.examplePlaceholder
+                  }
                   className="w-full text-[12px] border border-gray-200 rounded-lg px-2.5 py-2 focus:outline-none focus:border-green-400 font-mono"
                 />
               </div>
@@ -239,7 +279,9 @@ export function AIModelSelector({ onUpdate }: Props) {
             )}
 
             <div>
-              <label className="block text-[11px] font-semibold text-green-900 mb-1">Display Name</label>
+              <label className="block text-[11px] font-semibold text-green-900 mb-1">
+                Display Name
+              </label>
               <input
                 value={newModel.name}
                 onChange={(e) => setNewModel((n) => ({ ...n, name: e.target.value }))}
@@ -249,7 +291,9 @@ export function AIModelSelector({ onUpdate }: Props) {
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-green-900 mb-1">Description (optional)</label>
+              <label className="block text-[11px] font-semibold text-green-900 mb-1">
+                Description (optional)
+              </label>
               <input
                 value={newModel.description}
                 onChange={(e) => setNewModel((n) => ({ ...n, description: e.target.value }))}
@@ -260,29 +304,39 @@ export function AIModelSelector({ onUpdate }: Props) {
 
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-[11px] font-semibold text-green-900 mb-1">Cost In ($/1M tok)</label>
+                <label className="block text-[11px] font-semibold text-green-900 mb-1">
+                  Cost In ($/1M tok)
+                </label>
                 <input
                   type="number"
                   step="0.0001"
                   min="0"
                   value={newModel.costInputPerMillion}
-                  onChange={(e) => setNewModel((n) => ({ ...n, costInputPerMillion: e.target.value }))}
+                  onChange={(e) =>
+                    setNewModel((n) => ({ ...n, costInputPerMillion: e.target.value }))
+                  }
                   className="w-full text-[12px] border border-gray-200 rounded-lg px-2.5 py-2 focus:outline-none focus:border-green-400"
                 />
               </div>
               <div>
-                <label className="block text-[11px] font-semibold text-green-900 mb-1">Cost Out ($/1M tok)</label>
+                <label className="block text-[11px] font-semibold text-green-900 mb-1">
+                  Cost Out ($/1M tok)
+                </label>
                 <input
                   type="number"
                   step="0.0001"
                   min="0"
                   value={newModel.costOutputPerMillion}
-                  onChange={(e) => setNewModel((n) => ({ ...n, costOutputPerMillion: e.target.value }))}
+                  onChange={(e) =>
+                    setNewModel((n) => ({ ...n, costOutputPerMillion: e.target.value }))
+                  }
                   className="w-full text-[12px] border border-gray-200 rounded-lg px-2.5 py-2 focus:outline-none focus:border-green-400"
                 />
               </div>
               <div>
-                <label className="block text-[11px] font-semibold text-green-900 mb-1">Avg Latency (ms)</label>
+                <label className="block text-[11px] font-semibold text-green-900 mb-1">
+                  Avg Latency (ms)
+                </label>
                 <input
                   type="number"
                   min="0"
@@ -295,7 +349,9 @@ export function AIModelSelector({ onUpdate }: Props) {
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-green-900 mb-1">Tags (comma-separated, optional)</label>
+              <label className="block text-[11px] font-semibold text-green-900 mb-1">
+                Tags (comma-separated, optional)
+              </label>
               <input
                 value={newModel.tags}
                 onChange={(e) => setNewModel((n) => ({ ...n, tags: e.target.value }))}
@@ -395,7 +451,9 @@ export function AIModelSelector({ onUpdate }: Props) {
       </div>
 
       {/* Feature -> model routing */}
-      <div className="bg-white rounded-2xl border p-6" style={{ borderColor: "rgba(30,80,50,0.08)" }}>
+      <div
+        className="bg-white rounded-2xl border p-6"
+        style={{ borderColor: "rgba(30,80,50,0.08)" }}>
         <h3 className="font-serif text-lg text-green-900 mb-1">Feature-Specific Model Mapping</h3>
         <p className="text-[12px] text-text-muted mb-4">
           Choose which model handles each AI feature. Takes effect immediately, no redeploy.

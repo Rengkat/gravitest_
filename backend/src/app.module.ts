@@ -58,7 +58,9 @@ const ENV = process.env.NODE_ENV;
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: !ENV ? '.env' : `.env.${ENV}`,
+      // `.env.<NODE_ENV>` wins when present; plain `.env` is the fallback so
+      // `npm start` (NODE_ENV=development) still picks up a local `.env`.
+      envFilePath: ENV ? [`.env.${ENV}`, '.env'] : '.env',
       load: [
         appConfig,
         databaseConfig,
@@ -112,7 +114,7 @@ const ENV = process.env.NODE_ENV;
         // without Redis provisioned yet doesn't fail app bootstrap; the
         // RedisModule factory will just fail loudly the first time
         // something tries to use it.
-        REDIS_URL: Joi.string().optional(),
+        REDIS_URL: Joi.string().optional().allow(''),
         REDIS_HOST: Joi.string().default('localhost'),
         REDIS_PORT: Joi.number().default(6379),
         REDIS_PASSWORD: Joi.string().optional().allow(''),
@@ -127,11 +129,11 @@ const ENV = process.env.NODE_ENV;
         R2_SIGNED_URL_TTL: Joi.number().default(3600),
 
         // MEILISEARCH
-        MEILISEARCH_HOST: Joi.string().default('http://localhost:7700'),
+        MEILISEARCH_HOST: Joi.string().allow('').default('http://localhost:7700'),
         MEILISEARCH_API_KEY: Joi.string().optional().allow(''),
 
         // QDRANT
-        QDRANT_URL: Joi.string().default('http://localhost:6333'),
+        QDRANT_URL: Joi.string().allow('').default('http://localhost:6333'),
         QDRANT_API_KEY: Joi.string().optional().allow(''),
         QDRANT_VECTOR_SIZE: Joi.number().default(768),
 
@@ -155,6 +157,7 @@ const ENV = process.env.NODE_ENV;
         PAYSTACK_PUBLIC_KEY: Joi.string().optional().allow(''),
         PAYSTACK_BASE_URL: Joi.string()
           .uri()
+          .allow('')
           .default('https://api.paystack.co'),
         PAYSTACK_CALLBACK_URL: Joi.string()
           .uri()
@@ -170,34 +173,23 @@ const ENV = process.env.NODE_ENV;
         // config/paystackConfig.ts. OPay (config/opayConfig.ts) is optional:
         // unset = the gateway simply can't be enabled by admins.
         OPAY_ENV: Joi.string().valid('sandbox', 'live').default('sandbox'),
-        OPAY_MERCHANT_ID: Joi.string().when('OPAY_ENV', {
+        // All OPay values are optional and may be left blank to run
+        // Paystack-only (OpayGateway.isConfigured() simply reports false, so
+        // admins can't enable it). Previously OPAY_ENV=live made them
+        // REQUIRED, which crashed boot for exactly that Paystack-only setup.
+        OPAY_MERCHANT_ID: Joi.string().optional().allow(''),
+        OPAY_PUBLIC_KEY: Joi.string().optional().allow(''),
+        OPAY_SECRET_KEY: Joi.string().optional().allow(''),
+        // When set in live mode, callbacks/returns must be https.
+        OPAY_CALLBACK_URL: Joi.string().allow('').when('OPAY_ENV', {
           is: 'live',
-          then: Joi.string().required(),
-          otherwise: Joi.string().optional().allow(''),
+          then: Joi.string().uri({ scheme: ['https'] }).allow(''),
+          otherwise: Joi.string().uri().allow(''),
         }),
-        OPAY_PUBLIC_KEY: Joi.string().when('OPAY_ENV', {
+        OPAY_RETURN_URL: Joi.string().allow('').when('OPAY_ENV', {
           is: 'live',
-          then: Joi.string().required(),
-          otherwise: Joi.string().optional().allow(''),
-        }),
-        OPAY_SECRET_KEY: Joi.string().when('OPAY_ENV', {
-          is: 'live',
-          then: Joi.string().required(),
-          otherwise: Joi.string().optional().allow(''),
-        }),
-        OPAY_CALLBACK_URL: Joi.string().when('OPAY_ENV', {
-          is: 'live',
-          then: Joi.string()
-            .uri({ scheme: ['https'] })
-            .required(),
-          otherwise: Joi.string().uri().optional().allow(''),
-        }),
-        OPAY_RETURN_URL: Joi.string().when('OPAY_ENV', {
-          is: 'live',
-          then: Joi.string()
-            .uri({ scheme: ['https'] })
-            .required(),
-          otherwise: Joi.string().uri().optional().allow(''),
+          then: Joi.string().uri({ scheme: ['https'] }).allow(''),
+          otherwise: Joi.string().uri().allow(''),
         }),
         OPAY_CANCEL_URL: Joi.string().uri().optional().allow(''),
         OPAY_EXPIRE_MINUTES: Joi.number().min(1).max(1440).default(30),

@@ -27,8 +27,9 @@ export default registerAs('ai', () => ({
     apiKey: process.env.MISTRAL_API_KEY,
     baseUrl: process.env.MISTRAL_BASE_URL ?? 'https://api.mistral.ai/v1',
   },
-  // Primary provider per the product tech stack: Groq (llama-3.3-70b) for
-  // explanations/chat/post-mortem. Groq's endpoint is OpenAI-compatible.
+  // Primary text provider per the product tech stack: Groq for
+  // explanations/chat/post-mortem (default openai/gpt-oss-120b, which is on
+  // Groq's free plan). Groq's endpoint is OpenAI-compatible.
   groq: {
     apiKey: process.env.GROQ_API_KEY,
     baseUrl: process.env.GROQ_BASE_URL ?? 'https://api.groq.com/openai/v1',

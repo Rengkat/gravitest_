@@ -6,6 +6,13 @@ import {
   AiStreamChunk,
 } from '../interfaces/ai-provider.interface';
 
+// Gemini 2.5+/3.x are "thinking" models: hidden reasoning tokens count against
+// `maxOutputTokens`, so a tight cap (e.g. 800) can come back empty or cut off
+// mid-answer. Give them headroom on top of the caller's cap.
+const GEMINI_THINKING_MODEL = /^gemini-(2\.5|[3-9])/i;
+const GEMINI_THINKING_HEADROOM = 1024;
+const IMAGE_FETCH_TIMEOUT_MS = 15_000;
+
 // Google's Generative Language API has a different request/response shape
 // (roles are 'user'/'model', not 'user'/'assistant'; system prompt is a
 // separate `systemInstruction` field). Streaming here uses Gemini's
@@ -45,15 +52,33 @@ export class GoogleProvider implements AiProvider {
     }
 
     const data = await res.json();
+    // Skip "thought" parts (only present when thoughts are requested) and
+    // parts without text (e.g. thought signatures) so only the answer is joined.
     const text =
-      data.candidates?.[0]?.content?.parts
-        ?.map((p: { text: string }) => p.text)
-        .join('') ?? '';
+      (data.candidates?.[0]?.content?.parts ?? [])
+        .filter(
+          (p: { text?: string; thought?: boolean }) =>
+            typeof p.text === 'string' && p.thought !== true,
+        )
+        .map((p: { text: string }) => p.text)
+        .join('');
+
+    // An empty completion (safety block, or the token cap eaten by thinking)
+    // is a failure, not an answer — throwing lets AiRouterService fall back
+    // instead of saving a blank explanation or a zero score.
+    if (!text.trim()) {
+      throw new Error(
+        `Google AI returned an empty completion (finishReason=${data.candidates?.[0]?.finishReason ?? data.promptFeedback?.blockReason ?? 'unknown'})`,
+      );
+    }
 
     return {
       text,
       tokensInput: data.usageMetadata?.promptTokenCount ?? 0,
-      tokensOutput: data.usageMetadata?.candidatesTokenCount ?? 0,
+      // Thinking tokens are billed as output; include them so cost logs add up.
+      tokensOutput:
+        (data.usageMetadata?.candidatesTokenCount ?? 0) +
+        (data.usageMetadata?.thoughtsTokenCount ?? 0),
       responseTimeMs: Date.now() - start,
       modelId: params.modelId,
     };
@@ -88,7 +113,11 @@ export class GoogleProvider implements AiProvider {
       systemInstruction: { parts: [{ text: params.systemPrompt }] },
       contents,
       generationConfig: {
-        maxOutputTokens: params.maxTokens ?? 1500,
+        maxOutputTokens:
+          (params.maxTokens ?? 1500) +
+          (GEMINI_THINKING_MODEL.test(params.modelId)
+            ? GEMINI_THINKING_HEADROOM
+            : 0),
         temperature: params.temperature ?? 0.7,
         ...(params.jsonMode ? { responseMimeType: 'application/json' } : {}),
       },
@@ -120,9 +149,14 @@ export class GoogleProvider implements AiProvider {
         continue;
       }
       try {
-        const res = await fetch(part.imageUrl);
+        const res = await fetch(part.imageUrl, {
+          signal: AbortSignal.timeout(IMAGE_FETCH_TIMEOUT_MS),
+        });
         if (!res.ok) continue;
-        const mimeType = res.headers.get('content-type') ?? 'image/jpeg';
+        // Strip any "; charset=…" suffix — Gemini wants a bare MIME type.
+        const mimeType = (
+          res.headers.get('content-type') ?? 'image/jpeg'
+        ).split(';')[0].trim();
         const buffer = Buffer.from(await res.arrayBuffer());
         parts.push({
           inlineData: { mimeType, data: buffer.toString('base64') },

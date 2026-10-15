@@ -19,7 +19,8 @@ export interface QuestionVectorPoint {
 //  2. RAG grounding for the AI tutor / lesson-plan generator (retrieve
 //     relevant curriculum/question context before calling the LLM)
 // Embedding generation is intentionally NOT this service's job — call
-// your chosen embedding model (e.g. Gemini text-embedding-004) in the
+// your chosen embedding model (e.g. Gemini gemini-embedding-2 with
+// output_dimensionality=768 to match QDRANT_VECTOR_SIZE) in the
 // caller (QuestionsService, AiRouterService) and pass the resulting
 // vector in here. Keeps this service provider-agnostic.
 @Injectable()
