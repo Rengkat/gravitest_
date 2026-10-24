@@ -1,21 +1,20 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// Route protection.
+// Route protection (Next.js 16 "proxy" convention, formerly middleware).
 //
-// IMPORTANT: this file must live at the project root (next to /app), not
-// inside /app — Next.js only recognizes the middleware convention at the
-// root. A middleware.ts placed inside /app/ is silently ignored, which is
-// why routes weren't being protected before this file existed.
+// IMPORTANT: this file must live at the project root (next to /app), or in
+// /src if you use a src directory. A proxy.ts placed inside /app/ is silently
+// ignored.
 //
 // This checks lightweight cookies mirrored by lib/store/authStore.ts on
-// every login/logout (gt_auth, gt_role) — the real access/refresh tokens
-// live in localStorage only and are never sent here. That means this is a
-// UX-level redirect (keeps signed-out users off dashboard shells, keeps
-// signed-in users off the login page, keeps non-admins out of /admin),
-// not the security boundary — every actual protected API call is still
-// authorized independently by the NestJS JwtAuthGuard on the backend,
-// which is the real enforcement point.
+// every login/logout (gt_auth, gt_role, gt_onboarded). The real
+// access/refresh tokens live in localStorage only and are never sent here.
+// That means this is a UX-level redirect (keeps signed-out users off
+// dashboard shells, keeps signed-in users off the login page, keeps
+// non-admins out of /admin), not the security boundary. Every protected
+// API call is still authorized independently by the NestJS JwtAuthGuard on
+// the backend, which is the real enforcement point.
 
 const AUTH_PAGES = ["/login", "/register", "/forgot-password"];
 const PROTECTED_PREFIXES = ["/dashboard", "/ai-tutor", "/cbt"];
@@ -28,7 +27,7 @@ function matchesPrefix(pathname: string, prefixes: string[]): boolean {
   return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
   const isAuthed = req.cookies.get("gt_auth")?.value === "1";
   const role = req.cookies.get("gt_role")?.value;
@@ -38,7 +37,7 @@ export function middleware(req: NextRequest) {
   const isOnboarded = req.cookies.get("gt_onboarded")?.value !== "0";
 
   // Signed-in users shouldn't see the login/register/forgot-password
-  // screens — bounce them to the right dashboard instead.
+  // screens. Bounce them to the right dashboard instead.
   if (AUTH_PAGES.includes(pathname) && isAuthed) {
     const dest = role && ADMIN_ROLES.has(role) ? "/admin" : "/dashboard";
     return NextResponse.redirect(new URL(dest, req.url));
@@ -71,8 +70,8 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // Student/professional protected areas: must be signed in, and — for
-  // student roles specifically — must have finished /complete-registration
+  // Student/professional protected areas: must be signed in, and, for
+  // student roles specifically, must have finished /complete-registration
   // first. A student who closes the tab mid-wizard and logs back in later
   // lands here instead of a half-set-up dashboard.
   if (matchesPrefix(pathname, PROTECTED_PREFIXES)) {
@@ -91,8 +90,8 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Run on everything except static assets, images, and Next internals —
-  // cheap to evaluate and keeps the matcher list (above) as the single
+  // Run on everything except static assets, images, and Next internals.
+  // Cheap to evaluate and keeps the prefix lists above as the single
   // source of truth for which routes actually get gated.
   matcher: ["/((?!_next/static|_next/image|favicon.ico|icons|manifest.json|sw.js|offline.html).*)"],
 };
