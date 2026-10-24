@@ -40,6 +40,31 @@ describe("GatewaysAdmin", () => {
     expect(screen.getByRole("switch", { name: "Enable Paystack" })).toBeEnabled();
   });
 
+  it("lists exactly which environment variables are still missing (names only)", async () => {
+    vi.mocked(api.adminListGateways).mockResolvedValue([
+      gw({}),
+      gw({ code: "opay", displayName: "OPay", isDefault: false, enabled: false, configured: false, missingConfig: ["OPAY_CALLBACK_URL", "OPAY_RETURN_URL"] }),
+    ]);
+    wrap(<GatewaysAdmin />);
+    expect(await screen.findByText("OPAY_CALLBACK_URL, OPAY_RETURN_URL")).toBeInTheDocument();
+  });
+
+  it("explains the 'configured but switched off' state that makes checkout Paystack-only", async () => {
+    vi.mocked(api.adminListGateways).mockResolvedValue([gw({}), gw({ code: "opay", displayName: "OPay", isDefault: false, enabled: false })]);
+    wrap(<GatewaysAdmin />);
+    const banner = await screen.findByText(/has its credentials set but is switched off/);
+    expect(banner).toHaveTextContent(/OPay has its credentials set but is switched off.*only offered one payment method/);
+    expect(screen.getByText(/this method is off/i)).toBeInTheDocument();
+  });
+
+  it("shows no warning when every configured gateway is on", async () => {
+    vi.mocked(api.adminListGateways).mockResolvedValue([gw({}), gw({ code: "opay", displayName: "OPay", isDefault: false, enabled: true })]);
+    wrap(<GatewaysAdmin />);
+    await screen.findByRole("switch", { name: "Enable OPay" });
+    expect(screen.queryByText(/switched off/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/this method is off/i)).not.toBeInTheDocument();
+  });
+
   it("enables a configured gateway", async () => {
     vi.mocked(api.adminListGateways).mockResolvedValue([gw({}), gw({ code: "opay", displayName: "OPay", isDefault: false, enabled: false })]);
     vi.mocked(api.adminUpdateGateway).mockResolvedValue([]);

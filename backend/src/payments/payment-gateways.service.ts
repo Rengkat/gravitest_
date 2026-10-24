@@ -26,6 +26,8 @@ export interface AdminGatewayView extends CheckoutGatewayOption {
   enabled: boolean;
   /** Are the env credentials present? Unconfigured gateways can't be enabled. */
   configured: boolean;
+  /** Env var NAMES still missing (never values). Empty when configured. */
+  missingConfig: string[];
   sortOrder: number;
   updatedAt: Date;
 }
@@ -62,10 +64,37 @@ export class PaymentGatewaysService implements OnModuleInit {
             sortOrder: first ? 0 : ++order,
           }),
         );
-        this.logger.log(`Registered payment gateway "${g.code}" (enabled=${first}).`);
+        this.logger.log(
+          `Registered payment gateway "${g.code}" (enabled=${first}).`,
+        );
       }
+      await this.logGatewayStatus();
     } catch (err) {
       this.logger.error(`Gateway config seeding skipped: ${errorMessage(err)}`);
+    }
+  }
+
+  /**
+   * One line per gateway at boot, so "why isn't OPay offered?" is answerable
+   * from the logs alone. Names of missing variables only — never values.
+   */
+  private async logGatewayStatus(): Promise<void> {
+    const rows = new Map((await this.repo.find()).map((r) => [r.code, r]));
+    for (const g of this.registry.all()) {
+      const row = rows.get(g.code);
+      const missing = g.missingConfig();
+      const state = `${g.code}: ${g.isConfigured() ? 'configured' : `NOT configured (missing ${missing.join(', ')})`}, ${row?.enabled ? 'enabled' : 'disabled'}${row?.isDefault ? ', default' : ''}`;
+      if (g.isConfigured() && row && !row.enabled) {
+        this.logger.warn(
+          `${state} — credentials are set but this gateway is switched OFF, so customers are not offered it. Enable it in Admin → Billing → Payment methods.`,
+        );
+      } else if (row?.enabled && !g.isConfigured()) {
+        this.logger.warn(
+          `${state} — enabled in the admin switchboard but unusable, so it is hidden from checkout.`,
+        );
+      } else {
+        this.logger.log(state);
+      }
     }
   }
 
@@ -78,7 +107,10 @@ export class PaymentGatewaysService implements OnModuleInit {
       order: { sortOrder: 'ASC' },
     });
     return rows
-      .filter((r) => this.registry.has(r.code) && this.registry.get(r.code).isConfigured())
+      .filter(
+        (r) =>
+          this.registry.has(r.code) && this.registry.get(r.code).isConfigured(),
+      )
       .map((r) => ({
         code: r.code,
         displayName: r.displayName,
@@ -99,6 +131,7 @@ export class PaymentGatewaysService implements OnModuleInit {
           isDefault: r.isDefault,
           enabled: r.enabled,
           configured: g.isConfigured(),
+          missingConfig: g.missingConfig(),
           sortOrder: r.sortOrder,
           capabilities: g.capabilities,
           updatedAt: r.updatedAt,
@@ -113,12 +146,16 @@ export class PaymentGatewaysService implements OnModuleInit {
   async resolveForCheckout(code?: string): Promise<PaymentGateway> {
     const options = await this.listCheckoutOptions();
     if (options.length === 0) {
-      throw new BadRequestException('Payments are temporarily unavailable. Please try again later.');
+      throw new BadRequestException(
+        'Payments are temporarily unavailable. Please try again later.',
+      );
     }
     if (code) {
       const chosen = options.find((o) => o.code === code);
       if (!chosen) {
-        throw new BadRequestException(`Payment method "${code}" is not available right now.`);
+        throw new BadRequestException(
+          `Payment method "${code}" is not available right now.`,
+        );
       }
       return this.registry.get(chosen.code);
     }
@@ -128,18 +165,25 @@ export class PaymentGatewaysService implements OnModuleInit {
 
   // ─── ADMIN WRITES ─────────────────────────────────────────────────────────
 
-  async update(code: string, dto: UpdatePaymentGatewayDto): Promise<AdminGatewayView[]> {
-    if (!this.registry.has(code)) throw new NotFoundException(`Unknown gateway "${code}".`);
+  async update(
+    code: string,
+    dto: UpdatePaymentGatewayDto,
+  ): Promise<AdminGatewayView[]> {
+    if (!this.registry.has(code))
+      throw new NotFoundException(`Unknown gateway "${code}".`);
     const gateway = this.registry.get(code);
 
     await this.dataSource.transaction(async (m) => {
       const repo = m.getRepository(PaymentGatewayConfig);
       const row = await repo.findOne({ where: { code } });
-      if (!row) throw new NotFoundException(`Gateway "${code}" has no config row.`);
+      if (!row)
+        throw new NotFoundException(`Gateway "${code}" has no config row.`);
 
       if (dto.enabled === true && !gateway.isConfigured()) {
+        const missing = gateway.missingConfig();
         throw new BadRequestException(
-          `"${code}" can't be enabled: its credentials/URLs are not set in the server environment.`,
+          `"${code}" can't be enabled: its credentials/URLs are not set in the server environment` +
+            (missing.length ? ` (missing: ${missing.join(', ')}).` : '.'),
         );
       }
       if (dto.displayName !== undefined) row.displayName = dto.displayName;
@@ -151,7 +195,9 @@ export class PaymentGatewaysService implements OnModuleInit {
       // A default must be enabled.
       if (row.isDefault && !row.enabled) {
         if (dto.isDefault === true) {
-          throw new BadRequestException('Enable a gateway before making it the default.');
+          throw new BadRequestException(
+            'Enable a gateway before making it the default.',
+          );
         }
         row.isDefault = false;
       }
@@ -167,9 +213,14 @@ export class PaymentGatewaysService implements OnModuleInit {
           .execute();
       }
 
-      const enabled = await repo.find({ where: { enabled: true }, order: { sortOrder: 'ASC' } });
+      const enabled = await repo.find({
+        where: { enabled: true },
+        order: { sortOrder: 'ASC' },
+      });
       if (enabled.length === 0) {
-        throw new BadRequestException('At least one payment gateway must stay enabled.');
+        throw new BadRequestException(
+          'At least one payment gateway must stay enabled.',
+        );
       }
       if (!enabled.some((e) => e.isDefault)) {
         enabled[0].isDefault = true;

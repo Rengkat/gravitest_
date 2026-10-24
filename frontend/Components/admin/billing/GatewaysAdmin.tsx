@@ -14,9 +14,21 @@ export default function GatewaysAdmin() {
   if (isLoading) return <p role="status">Loading payment methods…</p>;
   if (isError || !data) return <p role="alert">Couldn&apos;t load payment methods.</p>;
 
+  // The usual reason checkout "only offers Paystack": a gateway whose credentials
+  // are set but which is still switched off (new gateways are seeded OFF).
+  const readyButOff = data.filter((g) => g.configured && !g.enabled);
+  const enabledCount = data.filter((g) => g.enabled && g.configured).length;
+
   return (
     <section aria-labelledby="gw-h" className="space-y-3">
       <h2 id="gw-h" className="font-serif text-xl text-green-900">Payment methods</h2>
+      {readyButOff.length > 0 && (
+        <p role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+          {readyButOff.map((g) => g.displayName).join(", ")} {readyButOff.length === 1 ? "has its" : "have their"} credentials set but{" "}
+          {readyButOff.length === 1 ? "is" : "are"} switched off, so customers are{" "}
+          {enabledCount <= 1 ? "only offered one payment method" : "not offered " + (readyButOff.length === 1 ? "it" : "them")}. Turn it on below.
+        </p>
+      )}
       <ul className="space-y-3">
         {data.map((g) => (
           <li key={g.code} className="rounded-2xl border border-cream-border bg-white p-4">
@@ -33,6 +45,16 @@ export default function GatewaysAdmin() {
                 {!g.configured && (
                   <p className="mt-1 text-xs font-medium text-red-700">
                     Not configured — set this gateway&apos;s credentials in the server environment to enable it.
+                    {g.missingConfig && g.missingConfig.length > 0 && (
+                      <>
+                        {" "}Still missing: <code className="font-mono">{g.missingConfig.join(", ")}</code>.
+                      </>
+                    )}
+                  </p>
+                )}
+                {g.configured && !g.enabled && (
+                  <p className="mt-1 text-xs font-medium text-amber-800">
+                    Credentials are set, but this method is off — customers can&apos;t choose it until you switch it on.
                   </p>
                 )}
               </div>

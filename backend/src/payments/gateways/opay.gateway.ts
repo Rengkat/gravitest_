@@ -96,24 +96,34 @@ export class OpayGateway implements PaymentGateway {
   ) {}
 
   isConfigured(): boolean {
-    return Boolean(
-      this.conf.merchantId &&
-        this.conf.publicKey &&
-        this.conf.secretKey &&
-        this.conf.callbackUrl &&
-        this.conf.returnUrl,
-    );
+    return this.missingConfig().length === 0;
+  }
+
+  missingConfig(): string[] {
+    const required: Array<[string, string | undefined]> = [
+      ['OPAY_MERCHANT_ID', this.conf.merchantId],
+      ['OPAY_PUBLIC_KEY', this.conf.publicKey],
+      ['OPAY_SECRET_KEY', this.conf.secretKey],
+      ['OPAY_CALLBACK_URL', this.conf.callbackUrl],
+      ['OPAY_RETURN_URL', this.conf.returnUrl],
+    ];
+    return required.filter(([, v]) => !v).map(([name]) => name);
   }
 
   // ── create payment ───────────────────────────────────────────────────────
 
-  async initialize(p: GatewayInitializeParams): Promise<GatewayInitializeResult> {
+  async initialize(
+    p: GatewayInitializeParams,
+  ): Promise<GatewayInitializeResult> {
     const body = {
       country: COUNTRY,
       reference: p.reference,
       // OPay documents `total` in the currency's minor ("cent") unit — kobo for NGN.
       amount: { total: p.amountKobo, currency: p.currency },
-      returnUrl: this.withQuery(this.conf.returnUrl!, { reference: p.reference, gateway: 'opay' }),
+      returnUrl: this.withQuery(this.conf.returnUrl!, {
+        reference: p.reference,
+        gateway: 'opay',
+      }),
       cancelUrl: this.withQuery(this.conf.cancelUrl ?? this.conf.returnUrl!, {
         reference: p.reference,
         gateway: 'opay',
@@ -221,31 +231,48 @@ export class OpayGateway implements PaymentGateway {
     } catch {
       throw new InvalidWebhookSignatureError('Malformed OPay callback body.');
     }
-    if (!cb?.payload || typeof cb.sha512 !== 'string' || !cb.payload.reference) {
+    if (
+      !cb?.payload ||
+      typeof cb.sha512 !== 'string' ||
+      !cb.payload.reference
+    ) {
       throw new InvalidWebhookSignatureError('Malformed OPay callback body.');
     }
 
     if (!this.isValidCallbackSignature(cb)) {
-      throw new InvalidWebhookSignatureError('Invalid OPay callback signature.');
+      throw new InvalidWebhookSignatureError(
+        'Invalid OPay callback signature.',
+      );
     }
 
     // Only 'transaction-status' carries a payment result we act on. Refund
     // notifications and payloads flagged `refunded` are acknowledged (so OPay
     // stops retrying) but never treated as a fresh payment.
     if (cb.type !== 'transaction-status' || cb.payload.refunded === true) {
-      this.logger.log(`OPay callback "${cb.type}" (refunded=${cb.payload.refunded}) acknowledged, not processed.`);
-      return { eventType: cb.type ?? 'unknown', data: cb.payload as unknown as Record<string, any>, charge: null };
+      this.logger.log(
+        `OPay callback "${cb.type}" (refunded=${cb.payload.refunded}) acknowledged, not processed.`,
+      );
+      return {
+        eventType: cb.type ?? 'unknown',
+        data: cb.payload as unknown as Record<string, any>,
+        charge: null,
+      };
     }
 
     // Defence in depth, per OPay's own guidance: a valid signature proves who
     // sent it, but the *state* we act on comes from the Status API, not from
     // the callback body.
     const charge = await this.verify(cb.payload.reference);
-    if (!charge.channel) charge.channel = this.mapChannel(cb.payload.instrumentType);
+    if (!charge.channel)
+      charge.channel = this.mapChannel(cb.payload.instrumentType);
     if (charge.status === 'failed' && cb.payload.displayedFailure) {
       charge.message = cb.payload.displayedFailure;
     }
-    return { eventType: 'transaction-status', data: cb.payload as unknown as Record<string, any>, charge };
+    return {
+      eventType: 'transaction-status',
+      data: cb.payload as unknown as Record<string, any>,
+      charge,
+    };
   }
 
   /**
@@ -272,7 +299,10 @@ export class OpayGateway implements PaymentGateway {
 
   // ── mapping ──────────────────────────────────────────────────────────────
 
-  private fromStatus(d: OpayStatusData, reference: string): GatewayChargeResult {
+  private fromStatus(
+    d: OpayStatusData,
+    reference: string,
+  ): GatewayChargeResult {
     const status: GatewayChargeStatus =
       d.status === 'SUCCESS'
         ? 'success'
@@ -296,7 +326,10 @@ export class OpayGateway implements PaymentGateway {
     };
   }
 
-  private notFound(reference: string, env: OpayEnvelope<unknown>): GatewayChargeResult {
+  private notFound(
+    reference: string,
+    env: OpayEnvelope<unknown>,
+  ): GatewayChargeResult {
     return {
       status: 'pending',
       reference,
@@ -311,7 +344,9 @@ export class OpayGateway implements PaymentGateway {
     };
   }
 
-  private mapChannel(instrument: string | undefined): TransactionChannel | null {
+  private mapChannel(
+    instrument: string | undefined,
+  ): TransactionChannel | null {
     switch ((instrument ?? '').toLowerCase()) {
       case 'bankcard':
         return TransactionChannel.CARD;
@@ -340,6 +375,8 @@ export class OpayGateway implements PaymentGateway {
   private errorDetail(err: unknown): string {
     const e = err as AxiosError<{ code?: string; message?: string }>;
     const d = e?.response?.data;
-    return d?.message ? `${d.code ?? ''} ${d.message}`.trim() : (e?.message ?? 'Unknown OPay error');
+    return d?.message
+      ? `${d.code ?? ''} ${d.message}`.trim()
+      : (e?.message ?? 'Unknown OPay error');
   }
 }

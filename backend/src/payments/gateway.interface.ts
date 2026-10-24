@@ -43,7 +43,11 @@ export interface GatewayInitializeResult {
   gatewayReference: string | null;
 }
 
-export type GatewayChargeStatus = 'success' | 'failed' | 'abandoned' | 'pending';
+export type GatewayChargeStatus =
+  | 'success'
+  | 'failed'
+  | 'abandoned'
+  | 'pending';
 
 export interface GatewayAuthorization {
   code: string;
@@ -92,6 +96,12 @@ export interface PaymentGateway {
   /** All required credentials/URLs present? Unconfigured gateways can't be enabled. */
   isConfigured(): boolean;
 
+  /**
+   * NAMES of the environment variables that are still unset/blank (never their
+   * values — safe to log and to show an admin). Empty when isConfigured().
+   */
+  missingConfig(): string[];
+
   initialize(params: GatewayInitializeParams): Promise<GatewayInitializeResult>;
 
   /** Ask the provider for the authoritative state of a charge. */
@@ -111,7 +121,10 @@ export interface PaymentGateway {
    * InvalidWebhookSignatureError if it can't prove the request came from the
    * provider. Must not act on unauthenticated data.
    */
-  parseWebhook(rawBody: Buffer, headers: RawHeaders): Promise<GatewayWebhookOutcome>;
+  parseWebhook(
+    rawBody: Buffer,
+    headers: RawHeaders,
+  ): Promise<GatewayWebhookOutcome>;
 }
 
 /** Thrown by parseWebhook when authentication fails (→ 401 + fraud alert). */

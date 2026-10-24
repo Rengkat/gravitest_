@@ -92,6 +92,8 @@ export interface AdminGateway extends PaymentGatewayOption {
   enabled: boolean;
   /** Are the server env credentials present? An unconfigured gateway can't be enabled. */
   configured: boolean;
+  /** Names (never values) of the env variables still unset. Absent on older backends. */
+  missingConfig?: string[];
   sortOrder: number;
   updatedAt: string;
 }

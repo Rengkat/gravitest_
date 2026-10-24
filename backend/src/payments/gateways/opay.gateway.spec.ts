@@ -61,6 +61,22 @@ describe('OpayGateway', () => {
     });
   });
 
+  describe('missingConfig', () => {
+    it('is empty when fully configured', () => {
+      expect(gw.missingConfig()).toEqual([]);
+    });
+    it('names exactly the env vars that are unset — and only names, never values', () => {
+      const partial = new OpayGateway(http as any, { ...CONF, callbackUrl: undefined, returnUrl: '' });
+      expect(partial.missingConfig()).toEqual(['OPAY_CALLBACK_URL', 'OPAY_RETURN_URL']);
+      expect(JSON.stringify(partial.missingConfig())).not.toContain(DOC_KEY);
+      expect(partial.isConfigured()).toBe(false);
+    });
+    it('the three credentials alone are NOT enough — the URLs are required too', () => {
+      const credsOnly = new OpayGateway(http as any, { ...CONF, callbackUrl: undefined, returnUrl: undefined });
+      expect(credsOnly.isConfigured()).toBe(false);
+    });
+  });
+
   describe('callback signature (HMAC-SHA3-512)', () => {
     it("accepts the sample callback from OPay's own documentation", () => {
       expect(gw.isValidCallbackSignature(DOC_CALLBACK as any)).toBe(true);

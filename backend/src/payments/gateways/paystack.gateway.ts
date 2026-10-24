@@ -43,10 +43,20 @@ export class PaystackGateway implements PaymentGateway {
   ) {}
 
   isConfigured(): boolean {
-    return Boolean(this.conf.secretKey && this.conf.callbackUrl);
+    return this.missingConfig().length === 0;
   }
 
-  async initialize(p: GatewayInitializeParams): Promise<GatewayInitializeResult> {
+  missingConfig(): string[] {
+    const required: Array<[string, string | undefined]> = [
+      ['PAYSTACK_SECRET_KEY', this.conf.secretKey],
+      ['PAYSTACK_CALLBACK_URL', this.conf.callbackUrl],
+    ];
+    return required.filter(([, v]) => !v).map(([name]) => name);
+  }
+
+  async initialize(
+    p: GatewayInitializeParams,
+  ): Promise<GatewayInitializeResult> {
     try {
       const { data } = await firstValueFrom(
         this.http.post<PaystackInitializeResponse>(
@@ -114,14 +124,20 @@ export class PaystackGateway implements PaymentGateway {
       );
       return this.toChargeResult(data.data);
     } catch (err) {
-      throw new GatewayRequestError('Card charge failed.', this.errorDetail(err));
+      throw new GatewayRequestError(
+        'Card charge failed.',
+        this.errorDetail(err),
+      );
     }
   }
 
   // The interface is async (other gateways call the provider here); Paystack's
   // signature check is purely local, so there is nothing to await.
   // eslint-disable-next-line @typescript-eslint/require-await
-  async parseWebhook(rawBody: Buffer, headers: RawHeaders): Promise<GatewayWebhookOutcome> {
+  async parseWebhook(
+    rawBody: Buffer,
+    headers: RawHeaders,
+  ): Promise<GatewayWebhookOutcome> {
     const signature = String(headers['x-paystack-signature'] ?? '');
     const computed = crypto
       .createHmac('sha512', this.conf.secretKey ?? '')
@@ -141,18 +157,24 @@ export class PaystackGateway implements PaymentGateway {
       throw new GatewayRequestError('Invalid JSON payload in webhook body.');
     }
 
-    const isCharge = payload.event === 'charge.success' || payload.event === 'charge.failed';
+    const isCharge =
+      payload.event === 'charge.success' || payload.event === 'charge.failed';
     return {
       eventType: payload.event,
       data: payload.data as unknown as Record<string, any>,
-      charge: isCharge ? this.toChargeResult(payload.data as PaystackTransactionData) : null,
+      charge: isCharge
+        ? this.toChargeResult(payload.data as PaystackTransactionData)
+        : null,
     };
   }
 
   // ── Paystack-only extras (legacy native subscriptions) ───────────────────
 
   /** Stops Paystack auto-billing a legacy native subscription. */
-  async disableSubscription(subscriptionCode: string, emailToken: string): Promise<void> {
+  async disableSubscription(
+    subscriptionCode: string,
+    emailToken: string,
+  ): Promise<void> {
     try {
       await firstValueFrom(
         this.http.post(

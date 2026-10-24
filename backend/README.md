@@ -96,3 +96,43 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 ## License
 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+
+
+## Payment gateways (Paystack + OPay)
+
+Both gateways run side by side. Which ones customers are offered is decided by
+**three independent gates** — all must be open for a gateway to appear at checkout:
+
+1. **Environment** — every required variable is set (non-blank). Missing names are
+   logged at boot and shown in *Admin → Billing → Payment methods*.
+2. **Admin switch** — `payment_gateway_configs.enabled`. A new gateway is seeded
+   **OFF**; setting credentials never turns it on by itself.
+3. **Frontend** — the payment-method picker only renders when 2+ gateways are
+   offered; with one it is hidden and that gateway is used.
+
+| Gateway  | Required variables |
+| -------- | ------------------ |
+| Paystack | `PAYSTACK_SECRET_KEY`, `PAYSTACK_CALLBACK_URL` |
+| OPay     | `OPAY_MERCHANT_ID`, `OPAY_PUBLIC_KEY`, `OPAY_SECRET_KEY`, `OPAY_CALLBACK_URL`, `OPAY_RETURN_URL` |
+
+Optional OPay: `OPAY_ENV` (`sandbox` default | `live`), `OPAY_CANCEL_URL`
+(defaults to the return URL), `OPAY_EXPIRE_MINUTES` (default 30), `OPAY_BASE_URL`.
+Blank values behave like unset.
+
+- `OPAY_CALLBACK_URL` = `https://<api-host>/api/v1/webhooks/opay` (also paste it into the OPay dashboard's webhook field).
+- `OPAY_RETURN_URL` = `https://<app-host>/dashboard/billing/result` (same page Paystack's `PAYSTACK_CALLBACK_URL` uses).
+- Paystack webhook: `https://<api-host>/api/v1/webhooks/paystack`.
+
+**To start offering OPay:** set the variables, restart, then *Admin → Billing →
+Payment methods* → switch OPay **On** (optionally *Make default*). Check the boot
+log line `opay: configured, enabled` to confirm.
+
+Payment access is only ever granted after **server-side verification** with the
+provider (Status/Verify API), never from the browser's return or a webhook body alone.
+
+### Payment end-to-end tests
+
+```bash
+TEST_DATABASE_URL=postgres://user:pass@localhost:5432/scratch npx jest payments.e2e billing.integration
+```
+Uses fake provider servers; the scratch database schema is dropped and recreated.

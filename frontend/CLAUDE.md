@@ -31,7 +31,7 @@ and ICAN interfaces. Built for low-bandwidth, mobile-first Nigerian realities.
 - **Offline:** next-pwa + Dexie.js (IndexedDB)
 - **HTTP Client:** Axios (custom instance in lib/api.ts — never raw fetch or axios)
 - **Realtime:** socket.io-client
-- **Payments:** @paystack/inline-js (never Stripe — poor Nigerian support)
+- **Payments:** hosted checkout started by the backend — Paystack AND OPay, chosen via `GET /billing/gateways` (never Stripe — poor Nigerian support). Never hardcode a single gateway in UI; render what the API offers.
 - **Notifications:** react-hot-toast
 - **Utilities:** nanoid, lodash-es
 
@@ -261,7 +261,7 @@ JetBrains Mono    → exam timers and code blocks only
 ## 🌍 Nigerian Context — Always Apply
 
 - Currency: `₦2,500` — never `NGN`, never `N2500`
-- Payments: Paystack only — never Stripe
+- Payments: Paystack and OPay (admin-switchable) — never Stripe
 - SMS/OTP: Termii — never Twilio (lower delivery rate in Nigeria)
 - Phone numbers: `+234XXXXXXXXXX` format
 - Network: significant 2G/3G user base — keep bundles lean,
@@ -277,7 +277,7 @@ JetBrains Mono    → exam timers and code blocks only
 
 - Dark mode — not in this phase, do not add `dark:` classes
 - React Native / Expo — mobile is a separate repo
-- Stripe — Paystack only
+- Stripe — use the Paystack / OPay gateways instead
 - i18n — English only for now
 - Backend logic — NestJS handles this in its own repo
 - SSR for the CBT exam interface — Client Component only, no exceptions

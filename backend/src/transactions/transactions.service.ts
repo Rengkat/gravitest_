@@ -119,7 +119,11 @@ export class TransactionsService {
 
   async initializeTransaction(
     params: InitializeTransactionParams,
-  ): Promise<{ transaction: Transaction; authorizationUrl: string; gateway: string }> {
+  ): Promise<{
+    transaction: Transaction;
+    authorizationUrl: string;
+    gateway: string;
+  }> {
     // Throws a user-facing 400 if the chosen gateway is disabled/unconfigured.
     const gateway = await this.gateways.resolveForCheckout(params.gateway);
     const reference = this.generateReference();
@@ -146,7 +150,9 @@ export class TransactionsService {
         currency: 'NGN',
         userId: params.userId,
         customer: { email: params.email, ...(params.customer ?? {}) },
-        productName: (params.purpose ?? this.describeTransaction(transaction)).slice(0, 100),
+        productName: (
+          params.purpose ?? this.describeTransaction(transaction)
+        ).slice(0, 100),
         metadata: {
           userId: params.userId,
           type: params.type,
@@ -158,10 +164,19 @@ export class TransactionsService {
 
       transaction.gatewayReference = result.gatewayReference;
       await this.transactionRepository.save(transaction);
-      return { transaction, authorizationUrl: result.authorizationUrl, gateway: gateway.code };
+      return {
+        transaction,
+        authorizationUrl: result.authorizationUrl,
+        gateway: gateway.code,
+      };
     } catch (err) {
-      const detail = err instanceof GatewayRequestError ? (err.detail ?? err.message) : String(err);
-      this.logger.error(`[${gateway.code}] initialize failed for ${reference}: ${detail}`);
+      const detail =
+        err instanceof GatewayRequestError
+          ? (err.detail ?? err.message)
+          : String(err);
+      this.logger.error(
+        `[${gateway.code}] initialize failed for ${reference}: ${detail}`,
+      );
       await this.transactionRepository.update(transaction.id, {
         status: TransactionStatus.FAILED,
         gatewayMessage: detail.slice(0, 250),
@@ -176,7 +191,9 @@ export class TransactionsService {
 
   // ─── CHARGE SAVED CARD (one-off / renewal, no redirect — Paystack only) ────
 
-  async chargeAuthorization(params: ChargeAuthorizationParams): Promise<Transaction> {
+  async chargeAuthorization(
+    params: ChargeAuthorizationParams,
+  ): Promise<Transaction> {
     const reference = this.generateReference();
 
     let transaction = this.transactionRepository.create({
@@ -211,14 +228,21 @@ export class TransactionsService {
         },
       });
     } catch (err) {
-      const detail = err instanceof GatewayRequestError ? (err.detail ?? err.message) : String(err);
+      const detail =
+        err instanceof GatewayRequestError
+          ? (err.detail ?? err.message)
+          : String(err);
       const failed = await this.applyFailure(transaction, detail);
-      throw new BadRequestException(`Card charge failed. ${failed.gatewayMessage ?? ''}`.trim());
+      throw new BadRequestException(
+        `Card charge failed. ${failed.gatewayMessage ?? ''}`.trim(),
+      );
     }
 
     const settled = await this.applyChargeResult(transaction, result);
     if (settled.status !== TransactionStatus.SUCCESS) {
-      throw new BadRequestException(`Card charge failed. ${settled.gatewayMessage ?? ''}`.trim());
+      throw new BadRequestException(
+        `Card charge failed. ${settled.gatewayMessage ?? ''}`.trim(),
+      );
     }
     return settled;
   }
@@ -300,9 +324,20 @@ export class TransactionsService {
 
   // ─── VERIFY (manual / post-redirect confirmation) ──────────────────────────
 
-  async verifyTransaction(reference: string): Promise<Transaction> {
-    const transaction = await this.transactionRepository.findOne({ where: { reference } });
-    if (!transaction) {
+  async verifyTransaction(
+    reference: string,
+    onlyForUserId?: string,
+  ): Promise<Transaction> {
+    const transaction = await this.transactionRepository.findOne({
+      where: { reference },
+    });
+    // When a customer is verifying (post-redirect), someone else's reference is
+    // indistinguishable from an unknown one — and we must not spend a gateway
+    // call or change state on a transaction that isn't theirs.
+    if (
+      !transaction ||
+      (onlyForUserId !== undefined && transaction.userId !== onlyForUserId)
+    ) {
       throw new NotFoundException(`Transaction "${reference}" not found.`);
     }
     if (transaction.status === TransactionStatus.SUCCESS) {
@@ -314,7 +349,9 @@ export class TransactionsService {
       result = await this.registry.get(transaction.gateway).verify(reference);
     } catch (err) {
       if (err instanceof GatewayRequestError) {
-        this.logger.warn(`[${transaction.gateway}] verify failed for ${reference}: ${err.detail ?? err.message}`);
+        this.logger.warn(
+          `[${transaction.gateway}] verify failed for ${reference}: ${err.detail ?? err.message}`,
+        );
         throw new BadRequestException(err.message);
       }
       throw err;
@@ -350,13 +387,20 @@ export class TransactionsService {
             body: `A request hit the ${code} webhook endpoint with a signature that failed verification — likely a forged/replayed request, not real ${code} traffic. It was rejected.`,
             priority: AdminAlertPriority.HIGH,
           })
-          .catch((e) => this.logger.error(`fraud_alert admin alert failed: ${e.message}`));
+          .catch((e) =>
+            this.logger.error(`fraud_alert admin alert failed: ${e.message}`),
+          );
         throw new UnauthorizedException(`Invalid ${code} signature.`);
       }
       if (err instanceof GatewayRequestError) {
-        this.logger.warn(`[${code}] webhook not processed: ${err.detail ?? err.message}`);
+        this.logger.warn(
+          `[${code}] webhook not processed: ${err.detail ?? err.message}`,
+        );
         // Transient upstream failure → 5xx so the gateway retries. Bad payload → 400.
-        if (err.retryable) throw new ServiceUnavailableException('Temporarily unable to process webhook.');
+        if (err.retryable)
+          throw new ServiceUnavailableException(
+            'Temporarily unable to process webhook.',
+          );
         throw new BadRequestException(err.message);
       }
       throw err;
@@ -369,7 +413,10 @@ export class TransactionsService {
         new PaystackWebhookReceivedEvent(outcome.eventType, outcome.data),
       );
 
-      if (outcome.eventType === 'charge.dispute.create' || outcome.eventType === 'charge.dispute.remind') {
+      if (
+        outcome.eventType === 'charge.dispute.create' ||
+        outcome.eventType === 'charge.dispute.remind'
+      ) {
         const d = outcome.data;
         this.adminAlertsService
           .raise({
@@ -382,7 +429,11 @@ export class TransactionsService {
             priority: AdminAlertPriority.HIGH,
             metadata: d,
           })
-          .catch((e) => this.logger.error(`payment_dispute admin alert failed: ${e.message}`));
+          .catch((e) =>
+            this.logger.error(
+              `payment_dispute admin alert failed: ${e.message}`,
+            ),
+          );
       }
     }
 
@@ -417,14 +468,22 @@ export class TransactionsService {
     if (result.status === 'pending') return transaction; // not final — don't fail it
 
     if (result.status !== 'success') {
-      return this.applyFailure(transaction, result.message, result.raw, result.status === 'abandoned');
+      return this.applyFailure(
+        transaction,
+        result.message,
+        result.raw,
+        result.status === 'abandoned',
+      );
     }
 
     // Never trust "success" alone: the money that actually moved must cover
     // what we asked for, in the right currency. Otherwise a user could pay
     // ₦1 against a ₦9,000 order (or a different currency) and get the plan.
+    // `!Number.isFinite` matters: a missing/garbled amount is NaN, and
+    // `NaN < expected` is false — which would otherwise pass this check.
     if (
       result.currency !== transaction.currency ||
+      !Number.isFinite(result.amountKobo) ||
       result.amountKobo < Number(transaction.amountKobo)
     ) {
       this.logger.error(
@@ -436,9 +495,14 @@ export class TransactionsService {
           title: 'Payment amount mismatch',
           body: `Transaction ${transaction.reference} (${transaction.gateway}) reported success but for ${result.amountKobo} ${result.currency} instead of ${transaction.amountKobo} ${transaction.currency}. Access was NOT granted. Review it before refunding or honouring it manually.`,
           priority: AdminAlertPriority.HIGH,
-          metadata: { transactionId: transaction.id, reference: transaction.reference },
+          metadata: {
+            transactionId: transaction.id,
+            reference: transaction.reference,
+          },
         })
-        .catch((e) => this.logger.error(`fraud_alert admin alert failed: ${e.message}`));
+        .catch((e) =>
+          this.logger.error(`fraud_alert admin alert failed: ${e.message}`),
+        );
       return this.applyFailure(transaction, 'Amount mismatch', result.raw);
     }
 
@@ -447,7 +511,12 @@ export class TransactionsService {
     // honoured after ABANDONED/FAILED too — if money moved, it moved.
     const auth = result.authorization;
     const updateResult = await this.transactionRepository.update(
-      { id: transaction.id, status: Not(In([TransactionStatus.SUCCESS, TransactionStatus.REVERSED])) },
+      {
+        id: transaction.id,
+        status: Not(
+          In([TransactionStatus.SUCCESS, TransactionStatus.REVERSED]),
+        ),
+      },
       {
         status: TransactionStatus.SUCCESS,
         channel: result.channel,
@@ -455,7 +524,8 @@ export class TransactionsService {
         cardType: auth?.cardType ?? null,
         bank: auth?.bank ?? null,
         authorizationCode: auth?.code ?? transaction.authorizationCode,
-        gatewayReference: result.gatewayReference ?? transaction.gatewayReference,
+        gatewayReference:
+          result.gatewayReference ?? transaction.gatewayReference,
         gatewayMessage: result.message,
         rawPayload: result.raw,
         paidAt: result.paidAt ?? new Date(),
@@ -463,10 +533,14 @@ export class TransactionsService {
     );
 
     if (updateResult.affected === 0) {
-      return (await this.transactionRepository.findOne({ where: { id: transaction.id } }))!;
+      return (await this.transactionRepository.findOne({
+        where: { id: transaction.id },
+      }))!;
     }
 
-    const refreshed = await this.transactionRepository.findOneByOrFail({ id: transaction.id });
+    const refreshed = await this.transactionRepository.findOneByOrFail({
+      id: transaction.id,
+    });
 
     if (auth?.reusable) {
       await this.upsertPaymentMethod(refreshed.userId, auth);
@@ -488,7 +562,9 @@ export class TransactionsService {
     );
 
     this.sendReceiptEmail(refreshed).catch((err) =>
-      this.logger.error(`Receipt email failed for transaction ${refreshed.id}: ${err.message}`),
+      this.logger.error(
+        `Receipt email failed for transaction ${refreshed.id}: ${err.message}`,
+      ),
     );
 
     return refreshed;
@@ -504,7 +580,9 @@ export class TransactionsService {
     // failure callback from downgrading a SUCCESS, or re-firing listeners.
     if (transaction.status !== TransactionStatus.PENDING) return transaction;
 
-    transaction.status = abandoned ? TransactionStatus.ABANDONED : TransactionStatus.FAILED;
+    transaction.status = abandoned
+      ? TransactionStatus.ABANDONED
+      : TransactionStatus.FAILED;
     transaction.gatewayMessage = reason;
     if (rawPayload) transaction.rawPayload = rawPayload;
     const updated = await this.transactionRepository.save(transaction);
@@ -573,7 +651,9 @@ export class TransactionsService {
       return;
     }
 
-    const hasAnyCard = await this.paymentMethodRepository.exist({ where: { userId } });
+    const hasAnyCard = await this.paymentMethodRepository.exist({
+      where: { userId },
+    });
 
     await this.paymentMethodRepository.save(
       this.paymentMethodRepository.create({
@@ -594,10 +674,15 @@ export class TransactionsService {
     userId: string,
     authorizationCode: string,
   ): Promise<PaymentMethod | null> {
-    return this.paymentMethodRepository.findOne({ where: { userId, authorizationCode } });
+    return this.paymentMethodRepository.findOne({
+      where: { userId, authorizationCode },
+    });
   }
 
-  async getPaymentMethod(userId: string, id: string): Promise<PaymentMethod | null> {
+  async getPaymentMethod(
+    userId: string,
+    id: string,
+  ): Promise<PaymentMethod | null> {
     return this.paymentMethodRepository.findOne({ where: { id, userId } });
   }
 
@@ -609,11 +694,14 @@ export class TransactionsService {
       firstName: user.firstName ?? 'there',
       description: this.describeTransaction(transaction),
       amount: this.formatNaira(transaction.amountKobo),
-      date: (transaction.paidAt ?? transaction.createdAt).toLocaleDateString('en-NG', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      }),
+      date: (transaction.paidAt ?? transaction.createdAt).toLocaleDateString(
+        'en-NG',
+        {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        },
+      ),
       reference: transaction.gatewayReference ?? transaction.reference,
       paymentMethod: transaction.cardLast4
         ? `${transaction.cardType ?? 'Card'} ending in ${transaction.cardLast4}`
@@ -627,8 +715,10 @@ export class TransactionsService {
       const plan = (transaction.metadata as Record<string, any> | null)?.tier;
       return plan ? `Gravitest ${plan} subscription` : 'Gravitest subscription';
     }
-    if (transaction.type === TransactionType.CONTENT_PURCHASE) return 'Gravitest content purchase';
-    if (transaction.type === TransactionType.WALLET_FUNDING) return 'Gravitest wallet funding';
+    if (transaction.type === TransactionType.CONTENT_PURCHASE)
+      return 'Gravitest content purchase';
+    if (transaction.type === TransactionType.WALLET_FUNDING)
+      return 'Gravitest wallet funding';
     return 'Gravitest payment';
   }
 
@@ -642,13 +732,18 @@ export class TransactionsService {
    * receipt template on demand rather than requiring the user to dig
    * through their inbox for the original.
    */
-  async resendReceipt(userId: string, transactionId: string): Promise<{ sent: boolean }> {
+  async resendReceipt(
+    userId: string,
+    transactionId: string,
+  ): Promise<{ sent: boolean }> {
     const transaction = await this.transactionRepository.findOne({
       where: { id: transactionId, userId },
     });
     if (!transaction) throw new NotFoundException('Transaction not found');
     if (transaction.status !== TransactionStatus.SUCCESS) {
-      throw new BadRequestException('Only successful transactions have a receipt to resend');
+      throw new BadRequestException(
+        'Only successful transactions have a receipt to resend',
+      );
     }
     await this.sendReceiptEmail(transaction);
     return { sent: true };
@@ -692,7 +787,14 @@ export class TransactionsService {
       periodEnd = activeSubscription.expiresAt ?? now;
     } else {
       periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+      periodEnd = new Date(
+        now.getFullYear(),
+        now.getMonth() + 1,
+        0,
+        23,
+        59,
+        59,
+      );
     }
 
     const [examUsage, aiRequestsUsed] = await Promise.all([

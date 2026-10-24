@@ -146,6 +146,16 @@ describe('TransactionsService — gateway-agnostic payment handling', () => {
       expect(emitted(TRANSACTION_FAILED_EVENT)).toHaveLength(1);
     });
 
+    it.each([
+      ['amount missing (NaN)', charge({ amountKobo: NaN })],
+      ['amount undefined', charge({ amountKobo: undefined as any })],
+    ])('%s from the gateway is NEVER treated as paid', async (_n, result) => {
+      const out = await settle(tx(), result);
+      expect(repo.update).not.toHaveBeenCalled();
+      expect(emitted(TRANSACTION_SUCCESSFUL_EVENT)).toHaveLength(0);
+      expect(out.status).toBe(TransactionStatus.FAILED);
+    });
+
     it('an overpayment is accepted (the customer is not penalised)', async () => {
       await settle(tx(), charge({ amountKobo: 600000 }));
       expect(emitted(TRANSACTION_SUCCESSFUL_EVENT)).toHaveLength(1);
@@ -203,6 +213,16 @@ describe('TransactionsService — gateway-agnostic payment handling', () => {
     it('404s an unknown reference', async () => {
       repo.findOne.mockResolvedValue(null);
       await expect(svc.verifyTransaction('nope')).rejects.toThrow(/not found/);
+    });
+    it("a customer cannot verify (or trigger a gateway call for) SOMEONE ELSE's reference", async () => {
+      repo.findOne.mockResolvedValue(tx({ userId: 'someone-else' }));
+      await expect(svc.verifyTransaction('ref1', 'u1')).rejects.toThrow(/not found/);
+      expect(gateway.verify).not.toHaveBeenCalled();
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+    it('the owner can verify their own reference', async () => {
+      const out = await settle(tx({ userId: 'u1' }), charge());
+      expect(out.status).toBe(TransactionStatus.SUCCESS);
     });
   });
 

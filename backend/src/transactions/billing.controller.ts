@@ -2,7 +2,6 @@ import {
   Controller,
   Delete,
   Get,
-  NotFoundException,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -10,7 +9,13 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 
 import { TransactionsService } from './transactions.service';
 import { TransactionFiltersDto } from './dto/transaction-filters.dto';
@@ -33,15 +38,23 @@ export class BillingController {
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiResponse({ status: 200, description: 'Transaction history retrieved' })
-  getMyTransactions(@UserId() userId: string, @Query() filters: TransactionFiltersDto) {
+  getMyTransactions(
+    @UserId() userId: string,
+    @Query() filters: TransactionFiltersDto,
+  ) {
     return this.transactionsService.findAllForUser(userId, filters);
   }
 
   @Get('transactions/:id')
-  @ApiOperation({ summary: 'Get a single transaction belonging to the current user' })
+  @ApiOperation({
+    summary: 'Get a single transaction belonging to the current user',
+  })
   @ApiParam({ name: 'id', type: String })
   @ApiResponse({ status: 200, description: 'Transaction retrieved' })
-  getMyTransaction(@UserId() userId: string, @Param('id', ParseUUIDPipe) id: string) {
+  getMyTransaction(
+    @UserId() userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.transactionsService.findOneForUser(id, userId);
   }
 
@@ -51,19 +64,24 @@ export class BillingController {
   @ApiOperation({ summary: 'Verify a checkout by reference (post-redirect)' })
   @ApiParam({ name: 'reference', type: String })
   @ApiResponse({ status: 200, description: 'Verification result' })
-  async verify(@UserId() userId: string, @Param('reference') reference: string) {
-    const transaction = await this.transactionsService.verifyTransaction(reference);
-    if (transaction.userId !== userId) {
-      throw new NotFoundException(`Transaction "${reference}" not found.`);
-    }
-    return transaction;
+  async verify(
+    @UserId() userId: string,
+    @Param('reference') reference: string,
+  ) {
+    // Scoped to the caller inside the service, before any gateway call is made.
+    return this.transactionsService.verifyTransaction(reference, userId);
   }
 
   @Post('transactions/:id/resend-receipt')
-  @ApiOperation({ summary: 'Re-send the payment receipt email for a successful transaction' })
+  @ApiOperation({
+    summary: 'Re-send the payment receipt email for a successful transaction',
+  })
   @ApiParam({ name: 'id', type: String })
   @ApiResponse({ status: 200, description: 'Receipt email sent' })
-  resendReceipt(@UserId() userId: string, @Param('id', ParseUUIDPipe) id: string) {
+  resendReceipt(
+    @UserId() userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.transactionsService.resendReceipt(userId, id);
   }
 
@@ -78,7 +96,10 @@ export class BillingController {
   @ApiOperation({ summary: 'Set a saved card as default' })
   @ApiParam({ name: 'id', type: String })
   @ApiResponse({ status: 200, description: 'Default card updated' })
-  setDefaultPaymentMethod(@UserId() userId: string, @Param('id', ParseUUIDPipe) id: string) {
+  setDefaultPaymentMethod(
+    @UserId() userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.transactionsService.setDefaultPaymentMethod(userId, id);
   }
 
@@ -86,7 +107,10 @@ export class BillingController {
   @ApiOperation({ summary: 'Remove a saved card' })
   @ApiParam({ name: 'id', type: String })
   @ApiResponse({ status: 200, description: 'Card removed' })
-  removePaymentMethod(@UserId() userId: string, @Param('id', ParseUUIDPipe) id: string) {
+  removePaymentMethod(
+    @UserId() userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.transactionsService.removePaymentMethod(userId, id);
   }
 }
