@@ -1,4 +1,8 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -8,9 +12,19 @@ import { AiRouterService } from './ai-router.service';
 import { AiPromptService } from './ai-prompt.service';
 import { AiRateLimitService } from './ai-rate-limit.service';
 import { SendMessageDto } from './dto/send-message.dto';
-import { RateConversationDto, FlagConversationDto } from './dto/conversation-feedback.dto';
-import { AIConversationStatus, AIFeature, AIMessageRole } from 'src/common/enums/enums';
-import { AiChatMessage, AiStreamChunk } from './interfaces/ai-provider.interface';
+import {
+  RateConversationDto,
+  FlagConversationDto,
+} from './dto/conversation-feedback.dto';
+import {
+  AIConversationStatus,
+  AIFeature,
+  AIMessageRole,
+} from 'src/common/enums/enums';
+import {
+  AiChatMessage,
+  AiStreamChunk,
+} from './interfaces/ai-provider.interface';
 
 const HISTORY_WINDOW = 12; // last N messages sent as context, matching your useChat.ts
 
@@ -29,12 +43,19 @@ export class AiTutorService {
   ) {}
 
   // Non-streaming send — full response in one shot.
-  async sendMessage(userId: string, dto: SendMessageDto): Promise<{ conversation: AiConversation; message: AiMessage }> {
+  async sendMessage(
+    userId: string,
+    dto: SendMessageDto,
+  ): Promise<{ conversation: AiConversation; message: AiMessage }> {
     await this.rateLimitService.assertFeatureAllowedForTier(userId, 'tutor');
     await this.rateLimitService.assertWithinLimits(userId);
 
     const conversation = await this.getOrCreateConversation(userId, dto);
-    const userMessage = await this.saveMessage(conversation, AIMessageRole.USER, dto.message);
+    const userMessage = await this.saveMessage(
+      conversation,
+      AIMessageRole.USER,
+      dto.message,
+    );
 
     const systemPrompt = await this.buildSystemPrompt(conversation, dto);
     const history = await this.loadHistory(conversation.id);
@@ -52,7 +73,13 @@ export class AiTutorService {
       conversation,
       AIMessageRole.ASSISTANT,
       result.text,
-      { tokensInput: result.tokensInput, tokensOutput: result.tokensOutput, responseTimeMs: result.responseTimeMs, modelId: result.modelConfig.modelId, costUsd: result.costUsd },
+      {
+        tokensInput: result.tokensInput,
+        tokensOutput: result.tokensOutput,
+        responseTimeMs: result.responseTimeMs,
+        modelId: result.modelConfig.modelId,
+        costUsd: result.costUsd,
+      },
     );
 
     await this.touchConversation(
@@ -67,7 +94,10 @@ export class AiTutorService {
 
   // Streaming send — used by the SSE controller endpoint for a live typing
   // effect. Persists the full assistant message once the stream completes.
-  async *streamMessage(userId: string, dto: SendMessageDto): AsyncGenerator<AiStreamChunk & { conversationId: string }> {
+  async *streamMessage(
+    userId: string,
+    dto: SendMessageDto,
+  ): AsyncGenerator<AiStreamChunk & { conversationId: string }> {
     await this.rateLimitService.assertFeatureAllowedForTier(userId, 'tutor');
     await this.rateLimitService.assertWithinLimits(userId);
 
@@ -108,7 +138,12 @@ export class AiTutorService {
       modelId: finalModelId,
       costUsd,
     });
-    await this.touchConversation(conversation, finalModelId, tokensInput + tokensOutput, costUsd);
+    await this.touchConversation(
+      conversation,
+      finalModelId,
+      tokensInput + tokensOutput,
+      costUsd,
+    );
   }
 
   async listConversations(userId: string): Promise<AiConversation[]> {
@@ -124,25 +159,39 @@ export class AiTutorService {
       relations: ['messages'],
     });
     if (!conversation) throw new NotFoundException('Conversation not found.');
-    if (conversation.userId !== userId) throw new ForbiddenException('Not your conversation.');
-    conversation.messages.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    if (conversation.userId !== userId)
+      throw new ForbiddenException('Not your conversation.');
+    conversation.messages.sort(
+      (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+    );
     return conversation;
   }
 
-  async deleteConversation(userId: string, id: string): Promise<{ id: string }> {
+  async deleteConversation(
+    userId: string,
+    id: string,
+  ): Promise<{ id: string }> {
     const conversation = await this.getConversation(userId, id);
     await this.conversationRepository.delete(conversation.id);
     return { id };
   }
 
-  async rate(userId: string, id: string, dto: RateConversationDto): Promise<AiConversation> {
+  async rate(
+    userId: string,
+    id: string,
+    dto: RateConversationDto,
+  ): Promise<AiConversation> {
     const conversation = await this.getConversation(userId, id);
     conversation.userRating = dto.rating;
     conversation.userFeedback = dto.feedback ?? null;
     return this.conversationRepository.save(conversation);
   }
 
-  async flag(userId: string, id: string, dto: FlagConversationDto): Promise<AiConversation> {
+  async flag(
+    userId: string,
+    id: string,
+    dto: FlagConversationDto,
+  ): Promise<AiConversation> {
     const conversation = await this.getConversation(userId, id);
     conversation.isFlagged = true;
     conversation.flagReason = dto.reason ?? 'Flagged by user';
@@ -152,11 +201,17 @@ export class AiTutorService {
 
   // ─── PRIVATE HELPERS ────────────────────────────────────────────────────────
 
-  private async getOrCreateConversation(userId: string, dto: SendMessageDto): Promise<AiConversation> {
+  private async getOrCreateConversation(
+    userId: string,
+    dto: SendMessageDto,
+  ): Promise<AiConversation> {
     if (dto.conversationId) {
-      const existing = await this.conversationRepository.findOne({ where: { id: dto.conversationId } });
+      const existing = await this.conversationRepository.findOne({
+        where: { id: dto.conversationId },
+      });
       if (!existing) throw new NotFoundException('Conversation not found.');
-      if (existing.userId !== userId) throw new ForbiddenException('Not your conversation.');
+      if (existing.userId !== userId)
+        throw new ForbiddenException('Not your conversation.');
       return existing;
     }
 
@@ -171,11 +226,15 @@ export class AiTutorService {
     return this.conversationRepository.save(conversation);
   }
 
-  private async buildSystemPrompt(conversation: AiConversation, dto: SendMessageDto): Promise<string> {
+  private async buildSystemPrompt(
+    conversation: AiConversation,
+    dto: SendMessageDto,
+  ): Promise<string> {
     const base = await this.promptService.getActivePrompt(AIFeature.SABI_TUTOR);
     const parts = [base];
 
-    if (dto.subject ?? conversation.subject) parts.push(`Subject focus: ${dto.subject ?? conversation.subject}.`);
+    if (dto.subject ?? conversation.subject)
+      parts.push(`Subject focus: ${dto.subject ?? conversation.subject}.`);
     if (dto.difficulty) parts.push(`Target level: ${dto.difficulty}.`);
     if (dto.style) parts.push(this.styleInstruction(dto.style));
     if (dto.pidgin) {
@@ -209,14 +268,23 @@ export class AiTutorService {
     return messages
       .reverse()
       .filter((m) => m.role !== AIMessageRole.SYSTEM)
-      .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+      .map((m) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      }));
   }
 
   private async saveMessage(
     conversation: AiConversation,
     role: AIMessageRole,
     content: string,
-    result?: { tokensInput: number; tokensOutput: number; responseTimeMs: number; modelId: string; costUsd: number },
+    result?: {
+      tokensInput: number;
+      tokensOutput: number;
+      responseTimeMs: number;
+      modelId: string;
+      costUsd: number;
+    },
   ): Promise<AiMessage> {
     const message = this.messageRepository.create({
       conversation,

@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import { AIProvider } from 'src/common/enums/enums';
 import { AiProvider as AiProviderInterface } from '../interfaces/ai-provider.interface';
@@ -11,7 +11,8 @@ import aiConfig from 'src/config/aiConfig';
 // AiRouterService asks this factory for a provider by enum value and
 // never touches API keys/base URLs itself.
 @Injectable()
-export class AiProviderFactory {
+export class AiProviderFactory implements OnModuleInit {
+  private readonly logger = new Logger(AiProviderFactory.name);
   private readonly instances = new Map<AIProvider, AiProviderInterface>();
 
   constructor(
@@ -76,6 +77,33 @@ export class AiProviderFactory {
         'Ollama',
       ),
     );
+  }
+
+  /**
+   * One line at boot so "why is the AI not answering?" is answerable from the
+   * logs: which providers have an API key, and which don't. Names only —
+   * key values are never logged.
+   */
+  onModuleInit(): void {
+    const keys: Array<[string, string | undefined]> = [
+      ['groq', this.conf.groq.apiKey],
+      ['mistral', this.conf.mistral.apiKey],
+      ['google', this.conf.google.apiKey],
+      ['deepseek', this.conf.deepseek.apiKey],
+      ['openai', this.conf.openai.apiKey],
+      ['anthropic', this.conf.anthropic.apiKey],
+      ['openrouter', this.conf.openrouter.apiKey],
+    ];
+    const withKey = keys.filter(([, k]) => k).map(([n]) => n);
+    const without = keys.filter(([, k]) => !k).map(([n]) => n);
+    this.logger.log(
+      `AI providers with an API key: ${withKey.join(', ') || 'none'}`,
+    );
+    if (without.length) {
+      this.logger.warn(
+        `AI providers WITHOUT a key (models on them will fail until it is set): ${without.join(', ')}`,
+      );
+    }
   }
 
   get(provider: AIProvider): AiProviderInterface {

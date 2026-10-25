@@ -1,8 +1,5 @@
 import { registerAs } from '@nestjs/config';
 
-// Cloudflare R2 speaks the S3 API, so we use @aws-sdk/client-s3 pointed at
-// R2's account-scoped endpoint. Zero egress fees make it the right call
-// for video/PDF/image delivery at Gravitest's scale.
 export default registerAs('storage', () => {
   const accountId = process.env.R2_ACCOUNT_ID || '';
   return {

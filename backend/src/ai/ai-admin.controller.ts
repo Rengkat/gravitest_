@@ -10,7 +10,13 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 
 import { AiAdminService } from './ai-admin.service';
 import { AiPromptService } from './ai-prompt.service';
@@ -52,7 +58,10 @@ export class AiAdminController {
   // the AiSettings entity for why.
 
   @Get('settings')
-  @ApiOperation({ summary: 'Get global AI settings (auto-flag threshold, budget alerts, retention)' })
+  @ApiOperation({
+    summary:
+      'Get global AI settings (auto-flag threshold, budget alerts, retention)',
+  })
   @ApiResponse({ status: 200, description: 'Settings retrieved' })
   getSettings() {
     return this.settingsService.get();
@@ -82,15 +91,22 @@ export class AiAdminController {
   }
 
   @Patch('models/:id')
-  @ApiOperation({ summary: 'Update a model (e.g. toggle isActive, adjust pricing)' })
+  @ApiOperation({
+    summary: 'Update a model (e.g. toggle isActive, adjust pricing)',
+  })
   @ApiParam({ name: 'id', type: String })
   @ApiResponse({ status: 200, description: 'Model updated' })
-  updateModel(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateModelConfigDto) {
+  updateModel(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateModelConfigDto,
+  ) {
     return this.adminService.updateModel(id, dto);
   }
 
   @Delete('models/:id')
-  @ApiOperation({ summary: 'Delete a model (blocked if assigned to a feature)' })
+  @ApiOperation({
+    summary: 'Delete a model (blocked if assigned to a feature)',
+  })
   @ApiParam({ name: 'id', type: String })
   @ApiResponse({ status: 200, description: 'Model deleted' })
   deleteModel(@Param('id', ParseUUIDPipe) id: string) {
@@ -107,10 +123,16 @@ export class AiAdminController {
   }
 
   @Patch('feature-mappings/:feature')
-  @ApiOperation({ summary: 'Assign primary/fallback models to a feature — takes effect immediately, no redeploy' })
+  @ApiOperation({
+    summary:
+      'Assign primary/fallback models to a feature — takes effect immediately, no redeploy',
+  })
   @ApiParam({ name: 'feature', enum: AIFeature })
   @ApiResponse({ status: 200, description: 'Mapping updated' })
-  upsertMapping(@Param('feature') feature: AIFeature, @Body() dto: UpdateFeatureMappingDto) {
+  upsertMapping(
+    @Param('feature') feature: AIFeature,
+    @Body() dto: UpdateFeatureMappingDto,
+  ) {
     return this.adminService.upsertMapping(feature, dto);
   }
 
@@ -125,14 +147,19 @@ export class AiAdminController {
   }
 
   @Post('prompts')
-  @ApiOperation({ summary: 'Create a new prompt version for a feature (auto-activates unless activate=false)' })
+  @ApiOperation({
+    summary:
+      'Create a new prompt version for a feature (auto-activates unless activate=false)',
+  })
   @ApiResponse({ status: 201, description: 'Prompt created' })
   createPrompt(@UserId() adminId: string, @Body() dto: CreateSystemPromptDto) {
     return this.promptService.create({ ...dto, createdBy: adminId });
   }
 
   @Patch('prompts/:id/activate')
-  @ApiOperation({ summary: 'Roll back to (or switch to) a specific prompt version' })
+  @ApiOperation({
+    summary: 'Roll back to (or switch to) a specific prompt version',
+  })
   @ApiParam({ name: 'id', type: String })
   @ApiResponse({ status: 200, description: 'Prompt activated' })
   activatePrompt(@Param('id', ParseUUIDPipe) id: string) {
@@ -152,14 +179,20 @@ export class AiAdminController {
   @ApiOperation({ summary: 'Update AI rate limits for a subscription tier' })
   @ApiParam({ name: 'tier', enum: SubscriptionTier })
   @ApiResponse({ status: 200, description: 'Rate limits updated' })
-  updateRateLimits(@Param('tier') tier: SubscriptionTier, @Body() dto: UpdateRateLimitDto) {
+  updateRateLimits(
+    @Param('tier') tier: SubscriptionTier,
+    @Body() dto: UpdateRateLimitDto,
+  ) {
     return this.rateLimitService.update(tier, dto);
   }
 
   // ─── CONVERSATIONS (matches ConversationList/ConversationDetail/FlaggedConversations) ──
 
   @Get('conversations')
-  @ApiOperation({ summary: 'List all conversations platform-wide, filterable by feature/flagged/search' })
+  @ApiOperation({
+    summary:
+      'List all conversations platform-wide, filterable by feature/flagged/search',
+  })
   @ApiQuery({ name: 'feature', required: false })
   @ApiQuery({ name: 'flagged', required: false })
   @ApiQuery({ name: 'search', required: false })
@@ -171,7 +204,9 @@ export class AiAdminController {
   }
 
   @Get('conversations/:id')
-  @ApiOperation({ summary: 'Get a conversation with full message history (admin view)' })
+  @ApiOperation({
+    summary: 'Get a conversation with full message history (admin view)',
+  })
   @ApiParam({ name: 'id', type: String })
   @ApiResponse({ status: 200, description: 'Conversation retrieved' })
   getConversation(@Param('id', ParseUUIDPipe) id: string) {
@@ -196,7 +231,9 @@ export class AiAdminController {
   }
 
   @Get('analytics/performance')
-  @ApiOperation({ summary: 'Success rate, avg latency, fallback rate, errors by model' })
+  @ApiOperation({
+    summary: 'Success rate, avg latency, fallback rate, errors by model',
+  })
   @ApiResponse({ status: 200, description: 'Performance stats retrieved' })
   performanceStats() {
     return this.adminService.getPerformanceStats();
@@ -222,7 +259,10 @@ export class AiAdminController {
   @ApiOperation({ summary: 'Update a scoring rubric' })
   @ApiParam({ name: 'id', type: String })
   @ApiResponse({ status: 200, description: 'Rubric updated' })
-  updateRubric(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateRubricDto) {
+  updateRubric(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateRubricDto,
+  ) {
     return this.adminService.updateRubric(id, dto);
   }
 

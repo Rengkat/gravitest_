@@ -21,97 +21,96 @@ import { AIFeature, AIProvider } from 'src/common/enums/enums';
 // Costs are USD per 1M tokens and only feed the usage/cost log. Free tiers
 // cost 0 in practice; the figures below are the paid-tier estimates so the
 // log stays meaningful if you later add billing.
-const MODEL_SEED: Array<
-  Omit<AiModelConfig, 'id' | 'createdAt' | 'updatedAt'>
-> = [
-  {
-    modelId: 'openai/gpt-oss-120b',
-    name: 'GPT-OSS 120B (Groq)',
-    provider: AIProvider.GROQ,
-    description:
-      'Primary text model — fast, on Groq\'s free plan. Used for tutoring, explanations and text-only scoring.',
-    costInputPerMillion: 0.15,
-    costOutputPerMillion: 0.6,
-    avgLatencyMs: 500,
-    isActive: true,
-    tags: ['fast', 'free-tier', 'primary'],
-  },
-  {
-    modelId: 'openai/gpt-oss-20b',
-    name: 'GPT-OSS 20B (Groq)',
-    provider: AIProvider.GROQ,
-    description: 'Smaller/faster Groq model for lightweight features.',
-    costInputPerMillion: 0.075,
-    costOutputPerMillion: 0.3,
-    avgLatencyMs: 300,
-    isActive: true,
-    tags: ['fast', 'free-tier', 'cheap'],
-  },
-  {
-    // Kept registered but INACTIVE by default: Groq now lists this model as
-    // Enterprise/contact-sales and it is absent from the free-plan limits
-    // table. If `GET https://api.groq.com/openai/v1/models` lists it for your
-    // key, flip isActive on in the admin.
-    modelId: 'llama-3.3-70b-versatile',
-    name: 'Llama 3.3 70B (Groq)',
-    provider: AIProvider.GROQ,
-    description:
-      'Original primary model. Inactive by default — enable only if your Groq key can list it.',
-    costInputPerMillion: 0.59,
-    costOutputPerMillion: 0.79,
-    avgLatencyMs: 400,
-    isActive: false,
-    tags: ['fast', 'legacy'],
-  },
-  {
-    modelId: 'mistral-small-latest',
-    name: 'Mistral Small',
-    provider: AIProvider.MISTRAL,
-    description:
-      'Fallback for text features and primary for essay scoring — large free token budget on the Experiment plan (which opts you in to data training).',
-    costInputPerMillion: 0.1,
-    costOutputPerMillion: 0.3,
-    avgLatencyMs: 800,
-    isActive: true,
-    tags: ['free-tier', 'fallback'],
-  },
-  {
-    modelId: 'deepseek-v4-flash',
-    name: 'DeepSeek V4 Flash',
-    provider: AIProvider.DEEPSEEK,
-    description:
-      'Very cheap paid swap-in (replaces the retired deepseek-chat id). Not wired to any feature by default.',
-    costInputPerMillion: 0.14,
-    costOutputPerMillion: 0.28,
-    avgLatencyMs: 1200,
-    isActive: true,
-    tags: ['cheap', 'text-only'],
-  },
-  {
-    modelId: 'gemini-3.5-flash-lite',
-    name: 'Gemini 3.5 Flash-Lite',
-    provider: AIProvider.GOOGLE,
-    description:
-      'Preferred vision model (diagram-in-essay scoring, image questions) — lowest latency among active Google models so the router picks it first.',
-    costInputPerMillion: 0.1,
-    costOutputPerMillion: 0.4,
-    avgLatencyMs: 600,
-    isActive: true,
-    tags: ['vision', 'free-tier', 'primary-vision'],
-  },
-  {
-    modelId: 'gemini-3.8-flash',
-    name: 'Gemini 3.8 Flash',
-    provider: AIProvider.GOOGLE,
-    description:
-      'Vision fallback — stronger but slower and costlier than Flash-Lite.',
-    costInputPerMillion: 0.75,
-    costOutputPerMillion: 3.75,
-    avgLatencyMs: 1000,
-    isActive: true,
-    tags: ['vision', 'fallback'],
-  },
-];
+const MODEL_SEED: Array<Omit<AiModelConfig, 'id' | 'createdAt' | 'updatedAt'>> =
+  [
+    {
+      modelId: 'openai/gpt-oss-120b',
+      name: 'GPT-OSS 120B (Groq)',
+      provider: AIProvider.GROQ,
+      description:
+        "Primary text model — fast, on Groq's free plan. Used for tutoring, explanations and text-only scoring.",
+      costInputPerMillion: 0.15,
+      costOutputPerMillion: 0.6,
+      avgLatencyMs: 500,
+      isActive: true,
+      tags: ['fast', 'free-tier', 'primary'],
+    },
+    {
+      modelId: 'openai/gpt-oss-20b',
+      name: 'GPT-OSS 20B (Groq)',
+      provider: AIProvider.GROQ,
+      description: 'Smaller/faster Groq model for lightweight features.',
+      costInputPerMillion: 0.075,
+      costOutputPerMillion: 0.3,
+      avgLatencyMs: 300,
+      isActive: true,
+      tags: ['fast', 'free-tier', 'cheap'],
+    },
+    {
+      // Kept registered but INACTIVE by default: Groq now lists this model as
+      // Enterprise/contact-sales and it is absent from the free-plan limits
+      // table. If `GET https://api.groq.com/openai/v1/models` lists it for your
+      // key, flip isActive on in the admin.
+      modelId: 'llama-3.3-70b-versatile',
+      name: 'Llama 3.3 70B (Groq)',
+      provider: AIProvider.GROQ,
+      description:
+        'Original primary model. Inactive by default — enable only if your Groq key can list it.',
+      costInputPerMillion: 0.59,
+      costOutputPerMillion: 0.79,
+      avgLatencyMs: 400,
+      isActive: false,
+      tags: ['fast', 'legacy'],
+    },
+    {
+      modelId: 'mistral-small-latest',
+      name: 'Mistral Small',
+      provider: AIProvider.MISTRAL,
+      description:
+        'Fallback for text features and primary for essay scoring — large free token budget on the Experiment plan (which opts you in to data training).',
+      costInputPerMillion: 0.1,
+      costOutputPerMillion: 0.3,
+      avgLatencyMs: 800,
+      isActive: true,
+      tags: ['free-tier', 'fallback'],
+    },
+    {
+      modelId: 'deepseek-v4-flash',
+      name: 'DeepSeek V4 Flash',
+      provider: AIProvider.DEEPSEEK,
+      description:
+        'Very cheap paid swap-in (replaces the retired deepseek-chat id). Not wired to any feature by default.',
+      costInputPerMillion: 0.14,
+      costOutputPerMillion: 0.28,
+      avgLatencyMs: 1200,
+      isActive: true,
+      tags: ['cheap', 'text-only'],
+    },
+    {
+      modelId: 'gemini-3.5-flash-lite',
+      name: 'Gemini 3.5 Flash-Lite',
+      provider: AIProvider.GOOGLE,
+      description:
+        'Preferred vision model (diagram-in-essay scoring, image questions) — lowest latency among active Google models so the router picks it first.',
+      costInputPerMillion: 0.1,
+      costOutputPerMillion: 0.4,
+      avgLatencyMs: 600,
+      isActive: true,
+      tags: ['vision', 'free-tier', 'primary-vision'],
+    },
+    {
+      modelId: 'gemini-3.8-flash',
+      name: 'Gemini 3.8 Flash',
+      provider: AIProvider.GOOGLE,
+      description:
+        'Vision fallback — stronger but slower and costlier than Flash-Lite.',
+      costInputPerMillion: 0.75,
+      costOutputPerMillion: 3.75,
+      avgLatencyMs: 1000,
+      isActive: true,
+      tags: ['vision', 'fallback'],
+    },
+  ];
 
 const GROQ_PRIMARY = 'openai/gpt-oss-120b';
 const TEXT_FALLBACK = 'mistral-small-latest';
@@ -216,9 +215,7 @@ export class AiSeedService implements OnModuleInit {
         await this.mappingRepo.save(
           this.mappingRepo.create({ ...mapping, isEnabled: true }),
         );
-        this.logger.log(
-          `Seeded AI feature mapping for "${mapping.feature}".`,
-        );
+        this.logger.log(`Seeded AI feature mapping for "${mapping.feature}".`);
       }
     }
 

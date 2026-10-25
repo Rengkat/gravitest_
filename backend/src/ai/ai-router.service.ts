@@ -1,4 +1,9 @@
-import { Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -50,7 +55,9 @@ export class AiRouterService {
   // available for chat too if a client doesn't want SSE.
   async complete(
     params: RouteParams,
-  ): Promise<AiCompletionResult & { modelConfig: AiModelConfig; costUsd: number }> {
+  ): Promise<
+    AiCompletionResult & { modelConfig: AiModelConfig; costUsd: number }
+  > {
     const { mapping, primary, fallback } = params.requiresVision
       ? await this.resolveVisionModel(params.feature)
       : await this.resolveModels(params.feature);
@@ -62,17 +69,22 @@ export class AiRouterService {
         systemPrompt: params.systemPrompt,
         messages: params.messages,
         maxTokens: mapping.maxTokens ?? undefined,
-        temperature: mapping.temperature != null ? Number(mapping.temperature) : undefined,
+        temperature:
+          mapping.temperature != null ? Number(mapping.temperature) : undefined,
         jsonMode: params.jsonMode,
       });
       const costUsd = await this.logUsage(params, primary, result, true, false);
       return { ...result, modelConfig: primary, costUsd };
     } catch (primaryErr) {
-      this.logger.warn(`Primary model "${primary.modelId}" failed: ${(primaryErr as Error).message}`);
+      this.logger.warn(
+        `Primary model "${primary.modelId}" failed: ${(primaryErr as Error).message}`,
+      );
 
       if (!fallback) {
         await this.logFailure(params, primary, primaryErr as Error);
-        throw new InternalServerErrorException('AI service is temporarily unavailable.');
+        throw new InternalServerErrorException(
+          'AI service is temporarily unavailable.',
+        );
       }
 
       try {
@@ -82,14 +94,30 @@ export class AiRouterService {
           systemPrompt: params.systemPrompt,
           messages: params.messages,
           maxTokens: mapping.maxTokens ?? undefined,
-          temperature: mapping.temperature != null ? Number(mapping.temperature) : undefined,
+          temperature:
+            mapping.temperature != null
+              ? Number(mapping.temperature)
+              : undefined,
           jsonMode: params.jsonMode,
         });
-        const costUsd = await this.logUsage(params, fallback, result, true, true);
+        const costUsd = await this.logUsage(
+          params,
+          fallback,
+          result,
+          true,
+          true,
+        );
         return { ...result, modelConfig: fallback, costUsd };
       } catch (fallbackErr) {
+        // Without this line only the PRIMARY's failure was ever logged, so
+        // "AI service is temporarily unavailable" gave no clue why.
+        this.logger.warn(
+          `Fallback model "${fallback.modelId}" failed: ${(fallbackErr as Error).message}`,
+        );
         await this.logFailure(params, fallback, fallbackErr as Error);
-        throw new InternalServerErrorException('AI service is temporarily unavailable.');
+        throw new InternalServerErrorException(
+          'AI service is temporarily unavailable.',
+        );
       }
     }
   }
@@ -102,7 +130,9 @@ export class AiRouterService {
   async *stream(
     params: RouteParams,
   ): AsyncGenerator<AiStreamChunk & { modelId?: string; costUsd?: number }> {
-    const { mapping, primary, fallback } = await this.resolveModels(params.feature);
+    const { mapping, primary, fallback } = await this.resolveModels(
+      params.feature,
+    );
     const start = Date.now();
 
     const buildGenerator = (m: AiModelConfig) =>
@@ -111,7 +141,8 @@ export class AiRouterService {
         systemPrompt: params.systemPrompt,
         messages: params.messages,
         maxTokens: mapping.maxTokens ?? undefined,
-        temperature: mapping.temperature != null ? Number(mapping.temperature) : undefined,
+        temperature:
+          mapping.temperature != null ? Number(mapping.temperature) : undefined,
       });
 
     let model = primary;
@@ -127,15 +158,27 @@ export class AiRouterService {
     } catch (primaryErr) {
       if (!fallback) {
         await this.logFailure(params, primary, primaryErr as Error);
-        throw new InternalServerErrorException('AI service is temporarily unavailable.');
+        throw new InternalServerErrorException(
+          'AI service is temporarily unavailable.',
+        );
       }
       this.logger.warn(
         `Primary stream model "${primary.modelId}" failed, falling back: ${(primaryErr as Error).message}`,
       );
       model = fallback;
       usedFallback = true;
-      generator = buildGenerator(fallback);
-      primed = await generator.next();
+      try {
+        generator = buildGenerator(fallback);
+        primed = await generator.next();
+      } catch (fallbackErr) {
+        this.logger.warn(
+          `Fallback stream model "${fallback.modelId}" failed: ${(fallbackErr as Error).message}`,
+        );
+        await this.logFailure(params, fallback, fallbackErr as Error);
+        throw new InternalServerErrorException(
+          'AI service is temporarily unavailable.',
+        );
+      }
     }
 
     let fullText = '';
@@ -165,12 +208,25 @@ export class AiRouterService {
     const costUsd = await this.logUsage(
       params,
       model,
-      { text: fullText, tokensInput, tokensOutput, responseTimeMs: Date.now() - start, modelId: model.modelId },
+      {
+        text: fullText,
+        tokensInput,
+        tokensOutput,
+        responseTimeMs: Date.now() - start,
+        modelId: model.modelId,
+      },
       true,
       usedFallback,
     );
 
-    yield { delta: '', done: true, tokensInput, tokensOutput, costUsd, modelId: model.modelId };
+    yield {
+      delta: '',
+      done: true,
+      tokensInput,
+      tokensOutput,
+      costUsd,
+      modelId: model.modelId,
+    };
   }
 
   // ─── PRIVATE HELPERS ────────────────────────────────────────────────────────
@@ -182,12 +238,18 @@ export class AiRouterService {
    * are forced to active AIProvider.GOOGLE models regardless of what's
    * configured, since only GoogleProvider actually looks at image parts.
    */
-  private async resolveVisionModel(
-    feature: AIFeature,
-  ): Promise<{ mapping: AiFeatureModelMapping; primary: AiModelConfig; fallback: AiModelConfig | null }> {
-    const mapping = await this.mappingRepository.findOne({ where: { feature } });
+  private async resolveVisionModel(feature: AIFeature): Promise<{
+    mapping: AiFeatureModelMapping;
+    primary: AiModelConfig;
+    fallback: AiModelConfig | null;
+  }> {
+    const mapping = await this.mappingRepository.findOne({
+      where: { feature },
+    });
     if (!mapping || !mapping.isEnabled) {
-      throw new NotFoundException(`AI feature "${feature}" is not configured or is disabled.`);
+      throw new NotFoundException(
+        `AI feature "${feature}" is not configured or is disabled.`,
+      );
     }
 
     const googleModels = await this.modelConfigRepository.find({
@@ -201,15 +263,25 @@ export class AiRouterService {
       );
     }
 
-    return { mapping, primary: googleModels[0], fallback: googleModels[1] ?? null };
+    return {
+      mapping,
+      primary: googleModels[0],
+      fallback: googleModels[1] ?? null,
+    };
   }
 
-  private async resolveModels(
-    feature: AIFeature,
-  ): Promise<{ mapping: AiFeatureModelMapping; primary: AiModelConfig; fallback: AiModelConfig | null }> {
-    const mapping = await this.mappingRepository.findOne({ where: { feature } });
+  private async resolveModels(feature: AIFeature): Promise<{
+    mapping: AiFeatureModelMapping;
+    primary: AiModelConfig;
+    fallback: AiModelConfig | null;
+  }> {
+    const mapping = await this.mappingRepository.findOne({
+      where: { feature },
+    });
     if (!mapping || !mapping.isEnabled) {
-      throw new NotFoundException(`AI feature "${feature}" is not configured or is disabled.`);
+      throw new NotFoundException(
+        `AI feature "${feature}" is not configured or is disabled.`,
+      );
     }
 
     const primary = await this.modelConfigRepository.findOne({
@@ -230,9 +302,15 @@ export class AiRouterService {
     return { mapping, primary, fallback };
   }
 
-  private computeCostUsd(model: AiModelConfig, tokensInput: number, tokensOutput: number): number {
-    const inputCost = (tokensInput / 1_000_000) * Number(model.costInputPerMillion);
-    const outputCost = (tokensOutput / 1_000_000) * Number(model.costOutputPerMillion);
+  private computeCostUsd(
+    model: AiModelConfig,
+    tokensInput: number,
+    tokensOutput: number,
+  ): number {
+    const inputCost =
+      (tokensInput / 1_000_000) * Number(model.costInputPerMillion);
+    const outputCost =
+      (tokensOutput / 1_000_000) * Number(model.costOutputPerMillion);
     return Number((inputCost + outputCost).toFixed(6));
   }
 
@@ -243,7 +321,11 @@ export class AiRouterService {
     success: boolean,
     usedFallback: boolean,
   ): Promise<number> {
-    const costUsd = this.computeCostUsd(model, result.tokensInput, result.tokensOutput);
+    const costUsd = this.computeCostUsd(
+      model,
+      result.tokensInput,
+      result.tokensOutput,
+    );
     await this.usageLogRepository.save(
       this.usageLogRepository.create({
         userId: params.userId,
@@ -262,7 +344,11 @@ export class AiRouterService {
     return costUsd;
   }
 
-  private async logFailure(params: RouteParams, model: AiModelConfig, error: Error): Promise<void> {
+  private async logFailure(
+    params: RouteParams,
+    model: AiModelConfig,
+    error: Error,
+  ): Promise<void> {
     await this.usageLogRepository.save(
       this.usageLogRepository.create({
         userId: params.userId,

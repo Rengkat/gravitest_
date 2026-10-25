@@ -31,11 +31,18 @@ export class AiPromptService {
       where: { feature, isActive: true },
       order: { version: 'DESC' },
     });
-    return row?.prompt ?? DEFAULT_PROMPTS[feature] ?? 'You are a helpful educational assistant.';
+    return (
+      row?.prompt ??
+      DEFAULT_PROMPTS[feature] ??
+      'You are a helpful educational assistant.'
+    );
   }
 
   async listForFeature(feature: AIFeature): Promise<AiSystemPrompt[]> {
-    return this.promptRepository.find({ where: { feature }, order: { version: 'DESC' } });
+    return this.promptRepository.find({
+      where: { feature },
+      order: { version: 'DESC' },
+    });
   }
 
   async create(params: {
@@ -51,7 +58,10 @@ export class AiPromptService {
     });
 
     if (params.activate !== false) {
-      await this.promptRepository.update({ feature: params.feature }, { isActive: false });
+      await this.promptRepository.update(
+        { feature: params.feature },
+        { isActive: false },
+      );
     }
 
     const row = this.promptRepository.create({
@@ -68,7 +78,10 @@ export class AiPromptService {
   async activate(id: string): Promise<AiSystemPrompt> {
     const row = await this.promptRepository.findOne({ where: { id } });
     if (!row) throw new Error(`Prompt "${id}" not found.`);
-    await this.promptRepository.update({ feature: row.feature }, { isActive: false });
+    await this.promptRepository.update(
+      { feature: row.feature },
+      { isActive: false },
+    );
     row.isActive = true;
     return this.promptRepository.save(row);
   }

@@ -136,3 +136,22 @@ provider (Status/Verify API), never from the browser's return or a webhook body 
 TEST_DATABASE_URL=postgres://user:pass@localhost:5432/scratch npx jest payments.e2e billing.integration
 ```
 Uses fake provider servers; the scratch database schema is dropped and recreated.
+
+
+## Troubleshooting: payments and AI
+
+Two commands tell you what is wrong without reading logs. Neither prints secrets.
+
+```bash
+npm run gateways                    # which payment methods customers are offered, and why not
+npm run gateways -- enable opay     # switch OPay on (after its OPAY_* variables are set)
+npm run check:ai                    # does each AI key work, and do the models the app uses exist?
+npm run check:ai -- --ping          # also send one tiny real request per active model
+```
+
+- Env files: `.env.<NODE_ENV>` is read **first** and `.env` is the fallback; the first file that
+  defines a variable wins. `npm run start:dev` runs as `development`, so `.env.development`
+  overrides `.env`. The server port variable is `PORT` (not `APP_PORT`).
+- Google AI Studio's newer `AQ.…` keys go in `GOOGLE_AI_API_KEY` exactly like the old `AIza…` keys.
+- If the AI replies "temporarily unavailable", the cause is in the backend log:
+  `Primary model "…" failed: …` followed by `Fallback model "…" failed: …`.

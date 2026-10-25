@@ -1,4 +1,10 @@
-import { Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import type Redis from 'ioredis';
 import { IsNull, Repository } from 'typeorm';
@@ -35,7 +41,10 @@ export class AiExplainService {
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
   ) {}
 
-  async explain(userId: string, dto: ExplainQuestionDto): Promise<{ explanation: string; cached: boolean }> {
+  async explain(
+    userId: string,
+    dto: ExplainQuestionDto,
+  ): Promise<{ explanation: string; cached: boolean }> {
     const detailLevel = dto.detailLevel ?? 'standard';
 
     // 1. ACCESS FIRST. Explanations are cached and shared across students, so
@@ -71,8 +80,14 @@ export class AiExplainService {
     const question = await this.questionsService.findOne(dto.questionId);
     if (!question) throw new NotFoundException('Question not found.');
 
-    const basePrompt = await this.promptService.getActivePrompt(AIFeature.SABI_EXPLAIN);
-    const userContent = this.buildUserContent(question, dto.studentAnswerLabel, detailLevel);
+    const basePrompt = await this.promptService.getActivePrompt(
+      AIFeature.SABI_EXPLAIN,
+    );
+    const userContent = this.buildUserContent(
+      question,
+      dto.studentAnswerLabel,
+      detailLevel,
+    );
 
     const result = await this.router.complete({
       feature: AIFeature.SABI_EXPLAIN,
@@ -101,7 +116,9 @@ export class AiExplainService {
     try {
       return (await this.redis.exists(key)) === 1;
     } catch (err) {
-      this.logger.warn(`explain unlock lookup failed (counting as a fresh use): ${(err as Error).message}`);
+      this.logger.warn(
+        `explain unlock lookup failed (counting as a fresh use): ${(err as Error).message}`,
+      );
       return false;
     }
   }
@@ -111,7 +128,9 @@ export class AiExplainService {
     try {
       await this.redis.set(key, '1', 'EX', UNLOCK_TTL_SECONDS);
     } catch (err) {
-      this.logger.warn(`explain unlock write failed: ${(err as Error).message}`);
+      this.logger.warn(
+        `explain unlock write failed: ${(err as Error).message}`,
+      );
     }
   }
 
@@ -130,7 +149,9 @@ export class AiExplainService {
       `Question: ${question.questionText}`,
       options ? `Options:\n${options}` : '',
       correctLabel ? `Correct answer: ${correctLabel}` : '',
-      existingExplanation ? `Existing explanation on file: ${existingExplanation}` : '',
+      existingExplanation
+        ? `Existing explanation on file: ${existingExplanation}`
+        : '',
       studentAnswerLabel
         ? `The student answered "${studentAnswerLabel}". Explain specifically why that option is wrong (if it is) and why "${correctLabel}" is correct.`
         : `Explain clearly why "${correctLabel}" is the correct answer and briefly why the other options are wrong.`,

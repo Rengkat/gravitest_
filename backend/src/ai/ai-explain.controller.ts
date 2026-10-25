@@ -14,8 +14,13 @@ export class AiExplainController {
   constructor(private readonly explainService: AiExplainService) {}
 
   @Post('mcq')
-  @ApiOperation({ summary: 'Get an AI explanation for an MCQ question (cached per question)' })
-  @ApiResponse({ status: 201, description: 'Explanation generated or served from cache' })
+  @ApiOperation({
+    summary: 'Get an AI explanation for an MCQ question (cached per question)',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Explanation generated or served from cache',
+  })
   explain(@UserId() userId: string, @Body() dto: ExplainQuestionDto) {
     return this.explainService.explain(userId, dto);
   }

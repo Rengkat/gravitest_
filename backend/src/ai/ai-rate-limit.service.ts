@@ -1,11 +1,23 @@
-import { HttpException, HttpStatus, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Injectable,
+  Logger,
+  OnModuleInit,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { MoreThan, Repository } from 'typeorm';
 
 import { AiRateLimitConfig } from './entities/ai-rate-limit-config.entity';
 import { AiUsageLog } from './entities/ai-usage-log.entity';
 import { EntitlementsService } from 'src/entitlements/entitlements.service';
-import { NotificationType, SubscriptionTier, AdminAlertPriority, AdminAlertType, FeatureKey } from 'src/common/enums/enums';
+import {
+  NotificationType,
+  SubscriptionTier,
+  AdminAlertPriority,
+  AdminAlertType,
+  FeatureKey,
+} from 'src/common/enums/enums';
 import { NotificationsService } from 'src/notifications/notifications.service';
 import { AdminAlertsService } from 'src/admin-alerts/admin-alerts.service';
 
@@ -17,11 +29,12 @@ interface SeedLimit {
 }
 
 // Which admin-editable access rule governs each AI capability.
-const AI_FEATURE_KEY: Record<'tutor' | 'explain' | 'explain_more', FeatureKey> = {
-  tutor: FeatureKey.AI_TUTOR,
-  explain: FeatureKey.AI_EXPLAIN,
-  explain_more: FeatureKey.AI_EXPLAIN_MORE,
-};
+const AI_FEATURE_KEY: Record<'tutor' | 'explain' | 'explain_more', FeatureKey> =
+  {
+    tutor: FeatureKey.AI_TUTOR,
+    explain: FeatureKey.AI_EXPLAIN,
+    explain_more: FeatureKey.AI_EXPLAIN_MORE,
+  };
 
 // Real tier scheme: FREE, BASIC, STANDARD, PREMIUM, ENTERPRISE. These are
 // starter numbers, not pricing decisions — edit via
@@ -89,7 +102,10 @@ export class AiRateLimitService implements OnModuleInit {
    * notification failure must not mask or replace the real rate-limit
    * error being thrown by the caller.
    */
-  private async alertLimitReached(userId: string, message: string): Promise<void> {
+  private async alertLimitReached(
+    userId: string,
+    message: string,
+  ): Promise<void> {
     try {
       await this.notificationsService.notify({
         userId,
@@ -102,13 +118,17 @@ export class AiRateLimitService implements OnModuleInit {
         actionUrl: '/pricing',
       });
     } catch (err: any) {
-      this.logger.warn(`AI-limit-reached notification failed for ${userId}: ${err.message}`);
+      this.logger.warn(
+        `AI-limit-reached notification failed for ${userId}: ${err.message}`,
+      );
     }
   }
 
   async onModuleInit(): Promise<void> {
     for (const tier of Object.values(SubscriptionTier)) {
-      const exists = await this.rateLimitRepository.findOne({ where: { tier } });
+      const exists = await this.rateLimitRepository.findOne({
+        where: { tier },
+      });
       if (!exists) {
         await this.rateLimitRepository.save(
           this.rateLimitRepository.create({ tier, ...SEED_LIMITS[tier] }),
@@ -128,8 +148,12 @@ export class AiRateLimitService implements OnModuleInit {
     const oneDayAgo = new Date(now - 24 * 60 * 60 * 1000);
 
     const [requestsLastHour, requestsLastDay, tokensToday] = await Promise.all([
-      this.usageLogRepository.count({ where: { userId, success: true, createdAt: MoreThan(oneHourAgo) } }),
-      this.usageLogRepository.count({ where: { userId, success: true, createdAt: MoreThan(oneDayAgo) } }),
+      this.usageLogRepository.count({
+        where: { userId, success: true, createdAt: MoreThan(oneHourAgo) },
+      }),
+      this.usageLogRepository.count({
+        where: { userId, success: true, createdAt: MoreThan(oneDayAgo) },
+      }),
       this.sumTokens(userId, oneDayAgo),
     ]);
 
@@ -141,7 +165,11 @@ export class AiRateLimitService implements OnModuleInit {
     if (requestsLastDay >= config.requestsPerDay) {
       const message = `Daily AI request limit reached (${config.requestsPerDay}/day on your plan). Try again tomorrow or upgrade your plan.`;
       await this.alertLimitReached(userId, message);
-      this.raiseHighUsageAdminAlert(userId, 'requests/day', config.requestsPerDay);
+      this.raiseHighUsageAdminAlert(
+        userId,
+        'requests/day',
+        config.requestsPerDay,
+      );
       throw new HttpException(message, HttpStatus.TOO_MANY_REQUESTS);
     }
     if (tokensToday >= config.tokensPerDay) {
@@ -160,7 +188,11 @@ export class AiRateLimitService implements OnModuleInit {
    * in practice, add a cooldown check here (e.g. skip if an unresolved
    * high_usage_alert for this userId was raised in the last N hours).
    */
-  private raiseHighUsageAdminAlert(userId: string, limitType: string, limitValue: number): void {
+  private raiseHighUsageAdminAlert(
+    userId: string,
+    limitType: string,
+    limitValue: number,
+  ): void {
     this.adminAlertsService
       .raise({
         type: AdminAlertType.HIGH_USAGE_ALERT,
@@ -170,7 +202,11 @@ export class AiRateLimitService implements OnModuleInit {
         actionUrl: `/admin/users/${userId}`,
         metadata: { userId, limitType, limitValue },
       })
-      .catch((err) => this.logger.warn(`high_usage_alert admin alert failed for ${userId}: ${err.message}`));
+      .catch((err) =>
+        this.logger.warn(
+          `high_usage_alert admin alert failed for ${userId}: ${err.message}`,
+        ),
+      );
   }
 
   /**
@@ -197,7 +233,10 @@ export class AiRateLimitService implements OnModuleInit {
   async getLimitsForUser(userId: string): Promise<AiRateLimitConfig> {
     const tier = await this.resolveTier(userId);
     const config = await this.rateLimitRepository.findOne({ where: { tier } });
-    if (!config) throw new Error(`No rate limit config for tier "${tier}" — seeding may have failed.`);
+    if (!config)
+      throw new Error(
+        `No rate limit config for tier "${tier}" — seeding may have failed.`,
+      );
     return config;
   }
 
@@ -205,7 +244,10 @@ export class AiRateLimitService implements OnModuleInit {
     return this.rateLimitRepository.find();
   }
 
-  async update(tier: SubscriptionTier, patch: Partial<AiRateLimitConfig>): Promise<AiRateLimitConfig> {
+  async update(
+    tier: SubscriptionTier,
+    patch: Partial<AiRateLimitConfig>,
+  ): Promise<AiRateLimitConfig> {
     await this.rateLimitRepository.update({ tier }, patch);
     const updated = await this.rateLimitRepository.findOne({ where: { tier } });
     if (!updated) throw new Error(`No rate limit config for tier "${tier}".`);

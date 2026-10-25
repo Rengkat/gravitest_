@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -51,11 +55,16 @@ export class AiAdminService {
     return this.modelConfigRepository.save(model);
   }
 
-  async updateModel(id: string, dto: UpdateModelConfigDto): Promise<AiModelConfig> {
+  async updateModel(
+    id: string,
+    dto: UpdateModelConfigDto,
+  ): Promise<AiModelConfig> {
     const model = await this.modelConfigRepository.findOne({ where: { id } });
     if (!model) throw new NotFoundException(`Model "${id}" not found.`);
     await this.modelConfigRepository.update(id, dto);
-    return this.modelConfigRepository.findOne({ where: { id } }) as Promise<AiModelConfig>;
+    return this.modelConfigRepository.findOne({
+      where: { id },
+    }) as Promise<AiModelConfig>;
   }
 
   async deleteModel(id: string): Promise<{ id: string }> {
@@ -63,7 +72,10 @@ export class AiAdminService {
     if (!model) throw new NotFoundException(`Model "${id}" not found.`);
 
     const inUse = await this.mappingRepository.findOne({
-      where: [{ primaryModelId: model.modelId }, { fallbackModelId: model.modelId }],
+      where: [
+        { primaryModelId: model.modelId },
+        { fallbackModelId: model.modelId },
+      ],
     });
     if (inUse) {
       throw new BadRequestException(
@@ -81,13 +93,26 @@ export class AiAdminService {
     return this.mappingRepository.find();
   }
 
-  async upsertMapping(feature: AIFeature, dto: UpdateFeatureMappingDto): Promise<AiFeatureModelMapping> {
-    const primaryExists = await this.modelConfigRepository.findOne({ where: { modelId: dto.primaryModelId } });
-    if (!primaryExists) throw new BadRequestException(`No model registered with modelId "${dto.primaryModelId}".`);
+  async upsertMapping(
+    feature: AIFeature,
+    dto: UpdateFeatureMappingDto,
+  ): Promise<AiFeatureModelMapping> {
+    const primaryExists = await this.modelConfigRepository.findOne({
+      where: { modelId: dto.primaryModelId },
+    });
+    if (!primaryExists)
+      throw new BadRequestException(
+        `No model registered with modelId "${dto.primaryModelId}".`,
+      );
 
     if (dto.fallbackModelId) {
-      const fallbackExists = await this.modelConfigRepository.findOne({ where: { modelId: dto.fallbackModelId } });
-      if (!fallbackExists) throw new BadRequestException(`No model registered with modelId "${dto.fallbackModelId}".`);
+      const fallbackExists = await this.modelConfigRepository.findOne({
+        where: { modelId: dto.fallbackModelId },
+      });
+      if (!fallbackExists)
+        throw new BadRequestException(
+          `No model registered with modelId "${dto.fallbackModelId}".`,
+        );
     }
 
     let mapping = await this.mappingRepository.findOne({ where: { feature } });
@@ -101,14 +126,27 @@ export class AiAdminService {
 
   // ─── CONVERSATIONS (moderation) ─────────────────────────────────────────────
 
-  async listConversations(filters: AdminConversationFiltersDto): Promise<PaginatedResult<AiConversation>> {
-    const { page = 1, limit = 50, feature, flagged, search, sortBy = 'lastActivityAt', sortOrder = 'DESC' } = filters;
+  async listConversations(
+    filters: AdminConversationFiltersDto,
+  ): Promise<PaginatedResult<AiConversation>> {
+    const {
+      page = 1,
+      limit = 50,
+      feature,
+      flagged,
+      search,
+      sortBy = 'lastActivityAt',
+      sortOrder = 'DESC',
+    } = filters;
 
     const qb = this.conversationRepository.createQueryBuilder('c');
     if (feature) qb.andWhere('c.feature = :feature', { feature });
-    if (flagged !== undefined) qb.andWhere('c.isFlagged = :flagged', { flagged });
+    if (flagged !== undefined)
+      qb.andWhere('c.isFlagged = :flagged', { flagged });
     if (search) {
-      qb.andWhere('(c.userId::text ILIKE :search OR c.title ILIKE :search)', { search: `%${search}%` });
+      qb.andWhere('(c.userId::text ILIKE :search OR c.title ILIKE :search)', {
+        search: `%${search}%`,
+      });
     }
 
     const allowedSorts: Record<string, string> = {
@@ -122,7 +160,10 @@ export class AiAdminService {
   }
 
   async getConversation(id: string): Promise<AiConversation> {
-    const conversation = await this.conversationRepository.findOne({ where: { id }, relations: ['messages'] });
+    const conversation = await this.conversationRepository.findOne({
+      where: { id },
+      relations: ['messages'],
+    });
     if (!conversation) throw new NotFoundException('Conversation not found.');
     return conversation;
   }
@@ -143,24 +184,58 @@ export class AiAdminService {
     costByModel: Record<string, number>;
     topUsersByCost: { userId: string; costUsd: number }[];
   }> {
-    const base = this.usageLogRepository.createQueryBuilder('l').where('l.success = true');
+    const base = this.usageLogRepository
+      .createQueryBuilder('l')
+      .where('l.success = true');
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
-    const [totalRaw, todayRaw, byFeatureRaw, byModelRaw, topUsersRaw] = await Promise.all([
-      base.clone().select('COALESCE(SUM(l.costUsd), 0)', 'sum').getRawOne<{ sum: string }>(),
-      base.clone().select('COALESCE(SUM(l.costUsd), 0)', 'sum').andWhere('l.createdAt >= :start', { start: startOfToday }).getRawOne<{ sum: string }>(),
-      base.clone().select('l.feature', 'feature').addSelect('SUM(l.costUsd)', 'sum').groupBy('l.feature').getRawMany<{ feature: string; sum: string }>(),
-      base.clone().select('l.modelId', 'modelId').addSelect('SUM(l.costUsd)', 'sum').groupBy('l.modelId').getRawMany<{ modelId: string; sum: string }>(),
-      base.clone().select('l.userId', 'userId').addSelect('SUM(l.costUsd)', 'sum').groupBy('l.userId').orderBy('sum', 'DESC').limit(10).getRawMany<{ userId: string; sum: string }>(),
-    ]);
+    const [totalRaw, todayRaw, byFeatureRaw, byModelRaw, topUsersRaw] =
+      await Promise.all([
+        base
+          .clone()
+          .select('COALESCE(SUM(l.costUsd), 0)', 'sum')
+          .getRawOne<{ sum: string }>(),
+        base
+          .clone()
+          .select('COALESCE(SUM(l.costUsd), 0)', 'sum')
+          .andWhere('l.createdAt >= :start', { start: startOfToday })
+          .getRawOne<{ sum: string }>(),
+        base
+          .clone()
+          .select('l.feature', 'feature')
+          .addSelect('SUM(l.costUsd)', 'sum')
+          .groupBy('l.feature')
+          .getRawMany<{ feature: string; sum: string }>(),
+        base
+          .clone()
+          .select('l.modelId', 'modelId')
+          .addSelect('SUM(l.costUsd)', 'sum')
+          .groupBy('l.modelId')
+          .getRawMany<{ modelId: string; sum: string }>(),
+        base
+          .clone()
+          .select('l.userId', 'userId')
+          .addSelect('SUM(l.costUsd)', 'sum')
+          .groupBy('l.userId')
+          .orderBy('sum', 'DESC')
+          .limit(10)
+          .getRawMany<{ userId: string; sum: string }>(),
+      ]);
 
     return {
       totalCostUsd: Number(totalRaw?.sum ?? 0),
       costToday: Number(todayRaw?.sum ?? 0),
-      costByFeature: Object.fromEntries(byFeatureRaw.map((r) => [r.feature, Number(r.sum)])),
-      costByModel: Object.fromEntries(byModelRaw.map((r) => [r.modelId, Number(r.sum)])),
-      topUsersByCost: topUsersRaw.map((r) => ({ userId: r.userId, costUsd: Number(r.sum) })),
+      costByFeature: Object.fromEntries(
+        byFeatureRaw.map((r) => [r.feature, Number(r.sum)]),
+      ),
+      costByModel: Object.fromEntries(
+        byModelRaw.map((r) => [r.modelId, Number(r.sum)]),
+      ),
+      topUsersByCost: topUsersRaw.map((r) => ({
+        userId: r.userId,
+        costUsd: Number(r.sum),
+      })),
     };
   }
 
@@ -173,7 +248,13 @@ export class AiAdminService {
   }> {
     const total = await this.usageLogRepository.count();
     if (total === 0) {
-      return { totalRequests: 0, successRate: 0, avgResponseTimeMs: 0, fallbackRate: 0, errorsByModel: {} };
+      return {
+        totalRequests: 0,
+        successRate: 0,
+        avgResponseTimeMs: 0,
+        fallbackRate: 0,
+        errorsByModel: {},
+      };
     }
 
     const [successCount, fallbackCount, avgRaw, errorsRaw] = await Promise.all([
@@ -198,14 +279,19 @@ export class AiAdminService {
       successRate: successCount / total,
       avgResponseTimeMs: Math.round(Number(avgRaw?.avg ?? 0)),
       fallbackRate: fallbackCount / total,
-      errorsByModel: Object.fromEntries(errorsRaw.map((r) => [r.modelId, Number(r.count)])),
+      errorsByModel: Object.fromEntries(
+        errorsRaw.map((r) => [r.modelId, Number(r.count)]),
+      ),
     };
   }
 
   // ─── RUBRICS ────────────────────────────────────────────────────────────────
 
   async listRubrics(): Promise<AiRubric[]> {
-    return this.rubricRepository.find({ where: { isActive: true }, order: { name: 'ASC' } });
+    return this.rubricRepository.find({
+      where: { isActive: true },
+      order: { name: 'ASC' },
+    });
   }
 
   async createRubric(dto: CreateRubricDto): Promise<AiRubric> {
@@ -216,7 +302,9 @@ export class AiAdminService {
     const rubric = await this.rubricRepository.findOne({ where: { id } });
     if (!rubric) throw new NotFoundException(`Rubric "${id}" not found.`);
     await this.rubricRepository.update(id, dto);
-    return this.rubricRepository.findOne({ where: { id } }) as Promise<AiRubric>;
+    return this.rubricRepository.findOne({
+      where: { id },
+    }) as Promise<AiRubric>;
   }
 
   async deleteRubric(id: string): Promise<{ id: string }> {

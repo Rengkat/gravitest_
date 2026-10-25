@@ -2,7 +2,8 @@ import { registerAs } from '@nestjs/config';
 
 // Blank values in .env (e.g. "PAYSTACK_BASE_URL=") arrive as empty strings, so
 // use a trimmed check, not `??`: an empty value must behave like an unset one.
-const clean = (v: string | undefined): string | undefined => v?.trim() || undefined;
+const clean = (v: string | undefined): string | undefined =>
+  v?.trim() || undefined;
 
 export default registerAs('paystack', () => ({
   secretKey: clean(process.env.PAYSTACK_SECRET_KEY),
