@@ -173,7 +173,9 @@ export default function AdminDashboard() {
   const revenueThisMonth = (txnStats?.revenueThisMonthKobo ?? 0) / 100;
   const revenueLastMonth = (txnStats?.revenueLastMonthKobo ?? 0) / 100;
   const revenueChange =
-    revenueLastMonth > 0 ? Math.round(((revenueThisMonth - revenueLastMonth) / revenueLastMonth) * 100) : 0;
+    revenueLastMonth > 0
+      ? Math.round(((revenueThisMonth - revenueLastMonth) / revenueLastMonth) * 100)
+      : 0;
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -216,7 +218,9 @@ export default function AdminDashboard() {
 
       {/* Quick Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <div className="p-4 rounded-2xl bg-white border" style={{ borderColor: "rgba(30,80,50,0.08)" }}>
+        <div
+          className="p-4 rounded-2xl bg-white border"
+          style={{ borderColor: "rgba(30,80,50,0.08)" }}>
           <div className="flex items-center gap-2 mb-2">
             <Users size={16} className="text-blue-600" />
             <span className="text-[12px] text-text-muted">Total Users</span>
@@ -224,15 +228,21 @@ export default function AdminDashboard() {
           <div className="text-[22px] font-bold text-green-900">{totalUsers.toLocaleString()}</div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white border" style={{ borderColor: "rgba(30,80,50,0.08)" }}>
+        <div
+          className="p-4 rounded-2xl bg-white border"
+          style={{ borderColor: "rgba(30,80,50,0.08)" }}>
           <div className="flex items-center gap-2 mb-2">
             <Users size={16} className="text-purple-600" />
             <span className="text-[12px] text-text-muted">Students</span>
           </div>
-          <div className="text-[22px] font-bold text-green-900">{totalStudents.toLocaleString()}</div>
+          <div className="text-[22px] font-bold text-green-900">
+            {totalStudents.toLocaleString()}
+          </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white border" style={{ borderColor: "rgba(30,80,50,0.08)" }}>
+        <div
+          className="p-4 rounded-2xl bg-white border"
+          style={{ borderColor: "rgba(30,80,50,0.08)" }}>
           <div className="flex items-center gap-2 mb-2">
             <Users size={16} className="text-green-600" />
             <span className="text-[12px] text-text-muted">Professionals</span>
@@ -242,7 +252,9 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white border" style={{ borderColor: "rgba(30,80,50,0.08)" }}>
+        <div
+          className="p-4 rounded-2xl bg-white border"
+          style={{ borderColor: "rgba(30,80,50,0.08)" }}>
           <div className="flex items-center gap-2 mb-2">
             <HelpCircle size={16} className="text-orange-600" />
             <span className="text-[12px] text-text-muted">Question Bank</span>
@@ -257,7 +269,9 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column - Recent Activity */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="p-6 rounded-2xl bg-white border" style={{ borderColor: "rgba(30,80,50,0.08)" }}>
+          <div
+            className="p-6 rounded-2xl bg-white border"
+            style={{ borderColor: "rgba(30,80,50,0.08)" }}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-serif text-xl text-green-900">Recent Activity</h2>
               <Link
@@ -327,7 +341,9 @@ export default function AdminDashboard() {
         {/* Right Column - AI Usage & Revenue breakdown */}
         <div className="space-y-6">
           {/* AI Usage Summary */}
-          <div className="p-6 rounded-2xl bg-white border" style={{ borderColor: "rgba(30,80,50,0.08)" }}>
+          <div
+            className="p-6 rounded-2xl bg-white border"
+            style={{ borderColor: "rgba(30,80,50,0.08)" }}>
             <div className="flex items-center gap-2 mb-4">
               <Bot size={18} className="text-green-600" />
               <h2 className="font-serif text-xl text-green-900">AI Usage</h2>
