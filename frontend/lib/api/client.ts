@@ -108,5 +108,10 @@ export function extractErrorMessage(err: unknown): string {
     if (data?.message) return Array.isArray(data.message) ? data.message.join(", ") : data.message;
     if (err.message) return err.message;
   }
+  // fetch() (used by streaming calls) rejects with a TypeError when the server
+  // can't be reached at all: backend not running, CORS block, offline.
+  if (err instanceof TypeError && /fetch|network|load failed/i.test(err.message)) {
+    return "Can't reach the server. Check your connection and try again.";
+  }
   return "Something went wrong. Please try again.";
 }

@@ -46,6 +46,10 @@ export interface StreamChunk {
   done: boolean;
   conversationId?: string;
   error?: string;
+  /** HTTP status of the failure (the stream itself is always HTTP 200). */
+  errorStatus?: number;
+  /** Structured body of a deliberate error, e.g. { code: "UPGRADE_REQUIRED", ... }. */
+  errorBody?: unknown;
 }
 
 /**

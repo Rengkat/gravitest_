@@ -13,6 +13,7 @@ import {
   type AiConversationDto,
 } from "@/lib/api/aiTutor";
 import { extractErrorMessage } from "@/lib/api/client";
+import { HttpError } from "@/lib/api/client";
 import { tutorErrorContent } from "./tutorError";
 
 interface UseChatOptions {
@@ -130,7 +131,11 @@ export function useChat({ selectedSubject, difficulty, responseStyle, pidgin }: 
           style: toBackendStyle(responseStyle),
           pidgin,
         })) {
-          if (chunk.error) throw new Error(chunk.error);
+          // The server reports failures INSIDE the stream (its HTTP status is
+          // already 200). Rebuild a proper HttpError so the student sees the real
+          // reason (and the "See plans" prompt for a paywall) — a plain Error
+          // would be flattened to "Something went wrong".
+          if (chunk.error) throw new HttpError(chunk.error, chunk.errorStatus ?? 500, chunk.errorBody);
           if (chunk.conversationId) newConversationId = chunk.conversationId;
           fullText += chunk.delta;
           setMessages((prev) =>

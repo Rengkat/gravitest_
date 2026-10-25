@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, CreditCard, LogOut, User, UserCircle, Loader2 } from "lucide-react";
+import { ChevronDown, CreditCard, LayoutDashboard, LogOut, User, UserCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -26,6 +26,10 @@ const UserMenu = ({ userMenuOpen, setUserMenuOpen }: UserMenuProps) => {
   // here until a dedicated admin profile page exists.
   const profileHref = "/dashboard/profile";
   const billingHref = "/dashboard/billing";
+  // Where an admin's "home" is. Profile (above) is the shared account page, so
+  // without this entry an admin who opens this menu from anywhere has no way
+  // back to the admin area.
+  const adminHref = "/admin";
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -54,6 +58,15 @@ const UserMenu = ({ userMenuOpen, setUserMenuOpen }: UserMenuProps) => {
               </p>
               <p className="text-[11px] text-text-muted truncate">{user.email}</p>
             </div>
+          )}
+
+          {isAdmin && (
+            <Link
+              href={adminHref}
+              onClick={() => setUserMenuOpen(false)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] font-semibold text-green-900 hover:bg-cream transition-colors">
+              <LayoutDashboard size={14} /> Admin dashboard
+            </Link>
           )}
 
           <Link

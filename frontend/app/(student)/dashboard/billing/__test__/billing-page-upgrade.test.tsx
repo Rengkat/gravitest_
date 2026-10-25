@@ -14,8 +14,8 @@ const hook = vi.fn();
 vi.mock("../useBilling", () => ({ useBilling: () => hook() }));
 // Only the modal's open state matters here; stub the heavy children.
 vi.mock("../components/PlanComparison", () => ({
-  default: ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => (
-    <div data-testid="plan-modal">{isOpen ? "open" : "closed"}<button onClick={onClose}>close-modal</button></div>
+  default: ({ isOpen, onClose, gatewaysError }: { isOpen: boolean; onClose: () => void; gatewaysError?: boolean }) => (
+    <div data-testid="plan-modal">{isOpen ? "open" : "closed"}{gatewaysError ? " gateways-error" : ""}<button onClick={onClose}>close-modal</button></div>
   ),
 }));
 vi.mock("../components/CurrentPlanCard", () => ({ default: () => <div /> }));
@@ -29,7 +29,7 @@ import BillingClientPage from "../components/BillingClientPage";
 
 const loaded = (over: Record<string, unknown> = {}) => ({
   isLoading: false, error: null, reload: vi.fn(), subscription: null, transactions: [], contentPurchases: [],
-  paymentMethods: [], subscriptionHistory: [], plans: [{ planId: "p1" }], gateways: [], usage: null,
+  paymentMethods: [], subscriptionHistory: [], plans: [{ planId: "p1" }], gateways: [], gatewaysFailed: false, refreshGateways: vi.fn(), usage: null,
   resendReceipt: vi.fn(), setDefaultCard: vi.fn(), removeCard: vi.fn(), subscribe: vi.fn(), cancelSubscription: vi.fn(), ...over,
 });
 
@@ -99,5 +99,27 @@ describe("billing page: ?upgrade=1 (sent by the library paywall and 'View Plans'
     rerender(<BillingClientPage />); rerender(<BillingClientPage />);
     expect(screen.getByTestId("plan-modal")).toHaveTextContent("open");
     expect(replace).not.toHaveBeenCalled();
+  });
+});
+
+describe("billing page: always offers the CURRENT payment methods", () => {
+  it("re-reads the payment methods when the plan chooser opens (an admin may have enabled one since page load)", () => {
+    const refreshGateways = vi.fn();
+    search = "upgrade=1"; hook.mockReturnValue(loaded({ refreshGateways }));
+    render(<BillingClientPage />);
+    expect(refreshGateways).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not refresh while the chooser is closed", () => {
+    const refreshGateways = vi.fn();
+    hook.mockReturnValue(loaded({ refreshGateways }));
+    render(<BillingClientPage />);
+    expect(refreshGateways).not.toHaveBeenCalled();
+  });
+
+  it("tells the chooser when the payment methods could not be loaded", () => {
+    search = "upgrade=1"; hook.mockReturnValue(loaded({ gatewaysFailed: true }));
+    render(<BillingClientPage />);
+    expect(screen.getByTestId("plan-modal")).toHaveTextContent("gateways-error");
   });
 });

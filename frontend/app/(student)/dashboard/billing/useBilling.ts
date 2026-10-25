@@ -167,6 +167,10 @@ export function useBilling() {
   const [history, setHistory] = useState<BackendSubscription[]>([]);
   const [plans, setPlans] = useState<BackendPlan[]>([]);
   const [gateways, setGateways] = useState<PaymentGatewayOption[]>([]);
+  // True when GET /billing/gateways failed. Checkout still works (the server
+  // uses its default method) but the customer isn't offered a choice — say so
+  // instead of silently looking like "only Paystack exists".
+  const [gatewaysFailed, setGatewaysFailed] = useState(false);
   const [usage, setUsage] = useState<billingApi.UsageSummaryResponse | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -176,6 +180,7 @@ export function useBilling() {
     setIsLoading(true);
     setError(null);
     try {
+      let gatewaysDown = false;
       const [txResult, methods, sub, subHistory, planList, usageResult, gatewayList] = await Promise.all([
         billingApi.getTransactions({ limit: 100 }),
         billingApi.getPaymentMethods(),
@@ -184,7 +189,10 @@ export function useBilling() {
         billingApi.getPlans(),
         billingApi.getMyUsage(),
         // Non-essential: if it fails the page still works (checkout uses the default gateway).
-        billingApi.getPaymentGateways().catch(() => [] as PaymentGatewayOption[]),
+        billingApi.getPaymentGateways().catch(() => {
+          gatewaysDown = true;
+          return [] as PaymentGatewayOption[];
+        }),
       ]);
       setTransactions(txResult.data);
       setPaymentMethods(methods);
@@ -193,6 +201,7 @@ export function useBilling() {
       setPlans(planList);
       setUsage(usageResult);
       setGateways(gatewayList);
+      setGatewaysFailed(gatewaysDown);
     } catch (err) {
       setError(extractErrorMessage(err));
     } finally {
@@ -203,6 +212,21 @@ export function useBilling() {
   useEffect(() => {
     load();
   }, [load]);
+
+  /**
+   * Re-read which payment methods are offered. The list is otherwise fetched
+   * once per page load, so an admin enabling a gateway while this page was open
+   * would not show up until a full reload. On failure the previous list is kept
+   * and the failure is flagged.
+   */
+  const refreshGateways = useCallback(async () => {
+    try {
+      setGateways(await billingApi.getPaymentGateways());
+      setGatewaysFailed(false);
+    } catch {
+      setGatewaysFailed(true);
+    }
+  }, []);
 
   // ── Mapped, component-ready data ─────────────────────────────────────
   const mappedTransactions = useMemo(() => transactions.map(mapTransaction), [transactions]);
@@ -288,6 +312,8 @@ export function useBilling() {
     subscriptionHistory: mappedHistory,
     plans: mappedPlans,
     gateways,
+    gatewaysFailed,
+    refreshGateways,
     usage: usageSummary,
 
     resendReceipt: doResendReceipt,

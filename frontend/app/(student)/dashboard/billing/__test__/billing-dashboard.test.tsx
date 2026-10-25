@@ -142,6 +142,21 @@ describe("PlanComparison (checkout)", () => {
     expect(onSubscribe).toHaveBeenCalledWith({ planId: "plan-std-m", gateway: "opay" });
   });
 
+  it("a failed payment-method lookup is SAID, not silently shown as 'only Paystack'", () => {
+    render(<PlanComparison isOpen onClose={vi.fn()} plans={options(plan())} gateways={[]} gatewaysError onSubscribe={vi.fn()} />);
+    expect(screen.getByRole("status")).toHaveTextContent(/couldn't load all payment options/);
+    expect(screen.queryByLabelText(/OPay/)).toBeNull();
+  });
+
+  it("no failure notice when the lookup worked, or when a choice is being shown", () => {
+    const { unmount } = render(<PlanComparison isOpen onClose={vi.fn()} plans={options(plan())} gateways={[PAYSTACK]} onSubscribe={vi.fn()} />);
+    expect(screen.queryByRole("status")).toBeNull();
+    unmount();
+    render(<PlanComparison isOpen onClose={vi.fn()} plans={options(plan())} gateways={[PAYSTACK, OPAY]} gatewaysError onSubscribe={vi.fn()} />);
+    expect(screen.queryByRole("status")).toBeNull(); // list is usable; no need to alarm
+    expect(screen.getByLabelText(/OPay/)).toBeInTheDocument();
+  });
+
   it("pre-selects the admin's default gateway", async () => {
     const onSubscribe = open(options(plan()), [OPAY, { ...PAYSTACK, isDefault: true }]);
     await userEvent.click(screen.getByRole("button", { name: /Upgrade Now/ }));

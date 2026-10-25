@@ -16,6 +16,8 @@ interface PlanComparisonProps {
   plans: PlanOption[];
   /** Payment methods the admin currently offers. Empty = use the server default. */
   gateways?: PaymentGatewayOption[];
+  /** The list of payment methods could not be loaded (so no choice is shown). */
+  gatewaysError?: boolean;
   onSubscribe: (payload: SubscribePayload) => Promise<unknown>;
 }
 
@@ -45,7 +47,7 @@ const PLAN_GRADIENTS: Record<string, string> = {
   premium: "from-green-500 to-emerald-600",
 };
 
-export default function PlanComparison({ isOpen, onClose, plans, gateways = [], onSubscribe }: PlanComparisonProps) {
+export default function PlanComparison({ isOpen, onClose, plans, gateways = [], gatewaysError = false, onSubscribe }: PlanComparisonProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -100,6 +102,12 @@ export default function PlanComparison({ isOpen, onClose, plans, gateways = [], 
           <div className="mx-8 mt-4 px-4 py-3 rounded-xl bg-red-50 border border-red-100 text-[13px] text-red-600">
             {error}
           </div>
+        )}
+
+        {gatewaysError && gateways.length < 2 && (
+          <p role="status" className="mx-8 mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-800">
+            We couldn&apos;t load all payment options, so the default method will be used. Close this window and reopen it, or refresh the page, to try again.
+          </p>
         )}
 
         {gateways.length > 1 && (

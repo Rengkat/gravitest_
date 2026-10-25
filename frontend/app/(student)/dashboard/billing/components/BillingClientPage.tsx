@@ -25,6 +25,8 @@ export default function BillingPage() {
     subscriptionHistory,
     plans,
     gateways,
+    gatewaysFailed,
+    refreshGateways,
     usage,
     resendReceipt,
     setDefaultCard,
@@ -44,6 +46,12 @@ export default function BillingPage() {
   const [autoDismissed, setAutoDismissed] = useState(false);
   const autoOpen = wantsUpgrade && !autoDismissed && !isLoading && plans.length > 0;
   const planModalOpen = showPlanModal || autoOpen;
+
+  // Always show the CURRENT set of payment methods when the chooser opens (an
+  // admin may have switched one on since this page loaded).
+  useEffect(() => {
+    if (planModalOpen) void refreshGateways();
+  }, [planModalOpen, refreshGateways]);
 
   const closePlanModal = () => {
     setShowPlanModal(false);
@@ -119,6 +127,7 @@ export default function BillingPage() {
         onClose={closePlanModal}
         plans={plans}
         gateways={gateways}
+        gatewaysError={gatewaysFailed}
         onSubscribe={subscribe}
       />
     </div>
