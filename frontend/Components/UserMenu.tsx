@@ -20,11 +20,10 @@ const UserMenu = ({ userMenuOpen, setUserMenuOpen }: UserMenuProps) => {
   const [loggingOut, setLoggingOut] = useState(false);
   const isAdmin = !!user && ADMIN_ROLES.has(user.role);
 
-  // There's no dedicated /admin/profile route yet — /dashboard/profile
-  // already handles admin accounts gracefully (it skips the
-  // student-only academic-profile fetch for them), so both roles land
-  // here until a dedicated admin profile page exists.
-  const profileHref = "/dashboard/profile";
+  // Admins get their own profile page inside the admin shell (/admin/profile)
+  // so they never get dropped into the student layout/sidebar. Students keep
+  // /dashboard/profile.
+  const profileHref = isAdmin ? "/admin/profile" : "/dashboard/profile";
   const billingHref = "/dashboard/billing";
   // Where an admin's "home" is. Profile (above) is the shared account page, so
   // without this entry an admin who opens this menu from anywhere has no way

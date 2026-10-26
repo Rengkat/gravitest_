@@ -4,7 +4,7 @@ import TypingDots from "./TypingDots";
 import CopyButton from "./CopyButton";
 import SubjectChip from "./SubjectChip";
 import renderMarkdown from "./RenderMarkdown";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface MessageBubbleProps {
   msg: Message;
@@ -15,6 +15,16 @@ export default function MessageBubble({ msg, onFeedback }: MessageBubbleProps) {
   const isUser = msg.role === "user";
   const likeRef = useRef<HTMLButtonElement>(null);
   const dislikeRef = useRef<HTMLButtonElement>(null);
+
+  // The time text depends on the viewer's timezone/locale, which the server
+  // doesn't know — rendering it during SSR causes a hydration mismatch. Fill
+  // it in after mount instead (empty on server and first client render).
+  const [timeLabel, setTimeLabel] = useState("");
+  useEffect(() => {
+    setTimeLabel(
+      msg.timestamp.toLocaleTimeString("en-NG", { hour: "2-digit", minute: "2-digit" }),
+    );
+  }, [msg.timestamp]);
 
   useEffect(() => {
     likeRef.current?.setAttribute("aria-pressed", String(msg.feedback === "like"));
@@ -63,11 +73,13 @@ export default function MessageBubble({ msg, onFeedback }: MessageBubbleProps) {
         {/* Meta row: timestamp, subject, actions */}
         <div
           className={`flex items-center gap-1.5 px-1 flex-wrap ${isUser ? "flex-row-reverse" : "flex-row"}`}>
-          <time
-            dateTime={msg.timestamp.toISOString()}
-            className="text-[11px] text-text-light font-mono">
-            {msg.timestamp.toLocaleTimeString("en-NG", { hour: "2-digit", minute: "2-digit" })}
-          </time>
+          {msg.id !== "welcome" && (
+            <time
+              dateTime={msg.timestamp.toISOString()}
+              className="text-[11px] text-text-light font-mono">
+              {timeLabel}
+            </time>
+          )}
 
           {msg.subject && msg.subject !== "general" && !isUser && (
             <SubjectChip subject={msg.subject} />

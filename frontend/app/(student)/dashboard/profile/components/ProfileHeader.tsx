@@ -18,6 +18,8 @@ import { UserProfile } from "@/types/profile";
 import { getInitials, getRoleBadgeConfig, getXPToNextLevel } from "@/lib/constants/profile";
 import * as profileApi from "@/lib/api/profile";
 
+const ADMIN_ROLES = new Set(["admin", "super_admin"]);
+
 interface ProfileHeaderProps {
   user: UserProfile;
   isEditing: boolean;
@@ -30,6 +32,8 @@ export default function ProfileHeader({ user, isEditing, onToggleEdit, onAvatarC
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const role = getRoleBadgeConfig(user.role);
+  // XP / level / rank / streak are learner concepts; admins have none.
+  const isAdmin = ADMIN_ROLES.has(user.role);
   const xpToNext = getXPToNextLevel(user.level);
   const xpProgress = Math.min(100, (user.totalXP / xpToNext) * 100);
 
@@ -116,9 +120,11 @@ export default function ProfileHeader({ user, isEditing, onToggleEdit, onAvatarC
                 className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${role.bg} ${role.text} ${role.border}`}>
                 {role.label}
               </span>
-              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-green-700 text-white">
-                Lv. {user.level}
-              </span>
+              {!isAdmin && (
+                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-green-700 text-white">
+                  Lv. {user.level}
+                </span>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-3 text-[12px] text-gray-500">
@@ -160,71 +166,75 @@ export default function ProfileHeader({ user, isEditing, onToggleEdit, onAvatarC
           <p className="text-[13px] text-gray-600 leading-relaxed mb-5 max-w-2xl">{user.bio}</p>
         )}
 
-        {/* XP bar */}
-        <div className="mb-5">
-          <div className="flex items-center justify-between text-[12px] mb-1.5">
-            <span className="font-semibold text-gray-700 flex items-center gap-1">
-              <Zap size={12} className="text-amber-500 fill-amber-500" />
-              {user.totalXP.toLocaleString()} XP
-            </span>
-            <span className="text-gray-400">
-              {getXPToNextLevel(user.level).toLocaleString()} XP to Level {user.level + 1}
-            </span>
-          </div>
-          <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-green-500 to-emerald-400 rounded-full transition-all duration-700"
-              style={{ width: `${xpProgress}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Stats strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            {
-              icon: Zap,
-              label: "Level",
-              value: user.level,
-              color: "text-amber-500",
-              bg: "bg-amber-50 border-amber-100",
-            },
-            {
-              icon: Trophy,
-              label: "Rank",
-              value: `#${user.rank}`,
-              color: "text-green-600",
-              bg: "bg-green-50 border-green-100",
-            },
-            {
-              icon: Flame,
-              label: "Streak",
-              value: `${user.streak} days`,
-              color: "text-orange-500",
-              bg: "bg-orange-50 border-orange-100",
-            },
-            {
-              icon: Star,
-              label: "Sessions",
-              value: user.completedSessions,
-              color: "text-blue-500",
-              bg: "bg-blue-50 border-blue-100",
-            },
-          ].map(({ icon: Icon, label, value, color, bg }) => (
-            <div
-              key={label}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${bg}`}>
-              <div
-                className={`w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-gray-100 shrink-0`}>
-                <Icon size={15} className={color} />
+        {!isAdmin && (
+          <>
+            {/* XP bar */}
+            <div className="mb-5">
+              <div className="flex items-center justify-between text-[12px] mb-1.5">
+                <span className="font-semibold text-gray-700 flex items-center gap-1">
+                  <Zap size={12} className="text-amber-500 fill-amber-500" />
+                  {user.totalXP.toLocaleString()} XP
+                </span>
+                <span className="text-gray-400">
+                  {getXPToNextLevel(user.level).toLocaleString()} XP to Level {user.level + 1}
+                </span>
               </div>
-              <div>
-                <p className="text-[14px] font-black text-gray-800">{value}</p>
-                <p className="text-[10px] text-gray-500 font-medium">{label}</p>
+              <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-green-500 to-emerald-400 rounded-full transition-all duration-700"
+                  style={{ width: `${xpProgress}%` }}
+                />
               </div>
             </div>
-          ))}
-        </div>
+
+            {/* Stats strip */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                {
+                  icon: Zap,
+                  label: "Level",
+                  value: user.level,
+                  color: "text-amber-500",
+                  bg: "bg-amber-50 border-amber-100",
+                },
+                {
+                  icon: Trophy,
+                  label: "Rank",
+                  value: `#${user.rank}`,
+                  color: "text-green-600",
+                  bg: "bg-green-50 border-green-100",
+                },
+                {
+                  icon: Flame,
+                  label: "Streak",
+                  value: `${user.streak} days`,
+                  color: "text-orange-500",
+                  bg: "bg-orange-50 border-orange-100",
+                },
+                {
+                  icon: Star,
+                  label: "Sessions",
+                  value: user.completedSessions,
+                  color: "text-blue-500",
+                  bg: "bg-blue-50 border-blue-100",
+                },
+              ].map(({ icon: Icon, label, value, color, bg }) => (
+                <div
+                  key={label}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${bg}`}>
+                  <div
+                    className={`w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm border border-gray-100 shrink-0`}>
+                    <Icon size={15} className={color} />
+                  </div>
+                  <div>
+                    <p className="text-[14px] font-black text-gray-800">{value}</p>
+                    <p className="text-[10px] text-gray-500 font-medium">{label}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

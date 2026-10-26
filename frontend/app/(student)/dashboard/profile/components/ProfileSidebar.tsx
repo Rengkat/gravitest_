@@ -24,6 +24,8 @@ export default function ProfileSidebar({
   onLogout,
 }: ProfileSidebarProps) {
   const role = getRoleBadgeConfig(user.role);
+  const isAdmin = user.role === "admin" || user.role === "super_admin";
+  const settingsHref = isAdmin ? "/admin/settings" : "/dashboard/settings";
 
   return (
     <div className="lg:col-span-1">
@@ -97,7 +99,7 @@ export default function ProfileSidebar({
 
           <div className="border-t border-gray-100 mt-3 pt-3 space-y-0.5">
             {/* Settings link — goes to dedicated settings page */}
-            <Link href="/dashboard/settings">
+            <Link href={settingsHref}>
               <div className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all group cursor-pointer">
                 <div className="w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 flex items-center justify-center shrink-0 transition-colors">
                   <Settings size={15} className="text-gray-500" />
@@ -106,11 +108,13 @@ export default function ProfileSidebar({
                   <p className="text-[13px] font-semibold">Settings</p>
                   <p className="text-[11px] text-gray-400">App preferences</p>
                 </div>
-                <div className="ml-auto">
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
-                    Soon
-                  </span>
-                </div>
+                {!isAdmin && (
+                  <div className="ml-auto">
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                      Soon
+                    </span>
+                  </div>
+                )}
               </div>
             </Link>
 

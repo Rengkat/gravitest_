@@ -551,7 +551,11 @@ I can help you with any subject on the Nigerian curriculum — JAMB, WAEC, NECO,
 • Generate practice questions on your weak topics
 
 Pick a subject from the sidebar and ask me anything. What would you like to learn today?`,
-  timestamp: new Date(),
+  // Fixed value on purpose: this is a module-level constant that is evaluated
+  // once on the server and once in the browser. `new Date()` here gave each a
+  // different time and caused a hydration mismatch. The welcome bubble never
+  // shows a time (see MessageBubble), so the value is never displayed.
+  timestamp: new Date(0),
   subject: "general",
 };
 

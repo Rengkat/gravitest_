@@ -70,6 +70,17 @@ export function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
+  // Admins have their own profile page inside the admin shell; keep them out
+  // of the student layout if they land on the shared route (old bookmarks).
+  if (
+    (pathname === "/dashboard/profile" || pathname.startsWith("/dashboard/profile/")) &&
+    isAuthed &&
+    role &&
+    ADMIN_ROLES.has(role)
+  ) {
+    return NextResponse.redirect(new URL(`/admin/profile${search}`, req.url));
+  }
+
   // Student/professional protected areas: must be signed in, and, for
   // student roles specifically, must have finished /complete-registration
   // first. A student who closes the tab mid-wizard and logs back in later

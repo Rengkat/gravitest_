@@ -14,11 +14,11 @@ const open = () => render(<UserMenu userMenuOpen setUserMenuOpen={() => {}} />);
 describe("UserMenu", () => {
   beforeEach(() => useAuthStore.setState({ user: null } as never));
 
-  it.each(["admin", "super_admin"])("%s: gets an Admin dashboard link to /admin, plus Profile, and no Billing", (role) => {
+  it.each(["admin", "super_admin"])("%s: gets an Admin dashboard link to /admin, Profile at /admin/profile, and no Billing", (role) => {
     asUser(role);
     open();
     expect(screen.getByRole("link", { name: /Admin dashboard/ })).toHaveAttribute("href", "/admin");
-    expect(screen.getByRole("link", { name: /Profile/ })).toHaveAttribute("href", "/dashboard/profile");
+    expect(screen.getByRole("link", { name: /Profile/ })).toHaveAttribute("href", "/admin/profile");
     expect(screen.queryByRole("link", { name: /Billing/ })).toBeNull();
   });
 
@@ -26,7 +26,7 @@ describe("UserMenu", () => {
     asUser("student");
     open();
     expect(screen.queryByRole("link", { name: /Admin dashboard/ })).toBeNull();
-    expect(screen.getByRole("link", { name: /Profile/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Profile/ })).toHaveAttribute("href", "/dashboard/profile");
     expect(screen.getByRole("link", { name: /Billing/ })).toHaveAttribute("href", "/dashboard/billing");
   });
 
