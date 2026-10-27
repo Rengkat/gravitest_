@@ -3,7 +3,9 @@
 
 import Link from "next/link";
 import { ChevronRight, LayoutDashboard, Users } from "lucide-react";
-import { SettingsSection } from "@/types/settings";
+// Admin settings have their own section list (platform, security, …) —
+// not the student one in @/types/settings, which lacks those sections.
+import type { SettingsSection } from "../types";
 import { ADMIN_SETTINGS_NAV } from "../constant";
 
 interface AdminSettingsSidebarProps {
