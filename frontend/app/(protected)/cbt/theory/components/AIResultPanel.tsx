@@ -1,165 +1,148 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback } from "react";
 import { AIResult, ExamMode } from "@/types/examsTypes";
-import { BookOpen, ChevronDown, ChevronUp, Sparkles, Loader2 } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { elaborateEssayScore } from "@/lib/api/aiScoring";
-import { accessErrorDecision, parseAccessError, type AccessError } from "@/lib/billing/errors";
-import { UpgradePrompt } from "@/Components/billing/FeatureGate";
+import ExplainWithAiButton from "@/Components/shared/ExplainWithAiButton";
+import MarkdownContent from "@/Components/shared/MarkdownContent";
 
-/* ─────────────────────────────────────────────────────────
-   AI RESULT PANEL  ← NEW
-───────────────────────────────────────────────────────── */
+/**
+ * Feedback for ONE graded part: score, AI feedback (strengths / weaknesses /
+ * how to improve), the stored explanation, the mark scheme, and an
+ * "Explain more with AI" control that is bound to this part's own score row.
+ * State here is local to the part, so parts can never affect each other.
+ */
 export default function AIResultPanel({
   result,
   modelAnswer,
+  questionText,
   onToggleSolution,
   onElaborated,
-  // mode,
 }: {
   result: AIResult;
   modelAnswer?: string;
+  /** Context line for the AI dialog (the part's question text). */
+  questionText?: string;
   onToggleSolution: () => void;
-  onElaborated: (detailedFeedback: string) => void;
-  mode: ExamMode;
+  onElaborated?: (detailedFeedback: string) => void;
+  mode?: ExamMode;
 }) {
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  // The detailed breakdown has its own free/paid rule: when it is locked we say why and how to unlock it.
-  const [locked, setLocked] = useState<AccessError | null>(null);
-
-  function handleExplainMore() {
-    if (!result.id || loadingMore || result.detailedFeedback) return;
-    setLoadingMore(true);
-    setError(null);
-    setLocked(null);
-    elaborateEssayScore(result.id)
-      .then((res) => {
-        if (res.detailedFeedback) onElaborated(res.detailedFeedback);
-      })
-      .catch((err) => {
-        const access = parseAccessError(err);
-        if (access) setLocked(access);
-        else setError("Couldn't get a deeper explanation right now — try again in a moment.");
-      })
-      .finally(() => setLoadingMore(false));
-  }
-  const pct = Math.round((result.score / result.maxScore) * 100);
-  // const color = pct >= 70 ? "text-green-700" : pct >= 50 ? "text-yellow-600" : "text-red-600";
+  const pct = result.maxScore ? Math.round((result.score / result.maxScore) * 100) : 0;
   const barColor = pct >= 70 ? "bg-green-600" : pct >= 50 ? "bg-yellow-500" : "bg-red-500";
+  const scoreId = result.id;
+  const mark = modelAnswer ?? result.modelAnswer;
+
+  // Bound to this part's score row (which carries the student's answer, the mark scheme and rubric server-side).
+  const requestExplanation = useCallback(
+    async () => {
+      if (!scoreId) throw new Error("There is nothing to explain for this part yet.");
+      const res = await elaborateEssayScore(scoreId);
+      const text = res.detailedFeedback;
+      if (!text) throw new Error("The AI returned an empty explanation. Please try again.");
+      onElaborated?.(text);
+      return text;
+    },
+    [scoreId, onElaborated],
+  );
 
   return (
     <div
       className="mt-4 rounded-xl border overflow-hidden"
-      style={{ borderColor: "rgba(30,80,50,0.15)" }}>
-      {/* Score header */}
+      style={{ borderColor: "rgba(30,80,50,0.15)" }}
+      role="region"
+      aria-label={`AI assessment: ${result.score} out of ${result.maxScore}`}>
       <div className="bg-gradient-to-r from-green-900 to-green-800 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Sparkles size={15} className="text-yellow-300" />
+          <Sparkles size={15} className="text-yellow-300" aria-hidden="true" />
           <span className="text-white text-sm font-bold">AI Assessment</span>
+          <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+            Automated estimate
+          </span>
         </div>
-        <div className={`text-white font-mono font-bold text-lg`}>
+        <div className="text-white font-mono font-bold text-lg">
           {result.score}
-          <span className="text-green-300 text-sm font-normal">/{result.maxScore}</span>
+          <span className="text-green-200 text-sm font-normal">/{result.maxScore}</span>
         </div>
       </div>
-      {/* Progress bar */}
-      <div className="h-1.5 bg-gray-100">
-        <div
-          className={`h-full ${barColor} transition-all duration-700`}
-          style={{ width: `${pct}%` }}
-        />
+      <div className="h-1.5 bg-gray-100" aria-hidden="true">
+        <div className={`h-full ${barColor} transition-all duration-700`} style={{ width: `${pct}%` }} />
       </div>
-      <div className="p-4 space-y-3 bg-white">
-        {/* Feedback */}
-        <p className="text-sm text-gray-700 leading-relaxed">{result.feedback}</p>
-        {/* Strengths */}
-        {result?.strengths?.length > 0 && (
+
+      <div className="p-4 space-y-4 bg-white">
+        {result.needsReview && (
+          <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+            The AI was not very confident about this grade, so it has been flagged for review.
+          </p>
+        )}
+
+        {result.feedback && <p className="text-sm text-gray-800 leading-relaxed">{result.feedback}</p>}
+
+        {result.strengths?.length > 0 && (
           <div>
-            <p className="text-[11px] font-bold text-green-700 uppercase tracking-wide mb-1.5">
-              Strengths
-            </p>
+            <p className="text-[11px] font-bold text-green-800 uppercase tracking-wide mb-1.5">Strengths</p>
             <ul className="space-y-1">
               {result.strengths.map((s, i) => (
-                <li key={i} className="flex gap-2 text-xs text-gray-600">
-                  <span className="text-green-600 mt-0.5 shrink-0">✓</span>
+                <li key={i} className="flex gap-2 text-[13px] text-gray-700">
+                  <span className="text-green-700 mt-0.5 shrink-0" aria-hidden="true">✓</span>
                   {s}
                 </li>
               ))}
             </ul>
           </div>
         )}
-        {/* Improvements */}
-        {result.improvements.length > 0 && (
+
+        {result.improvements?.length > 0 && (
           <div>
-            <p className="text-[11px] font-bold text-orange-600 uppercase tracking-wide mb-1.5">
-              Areas to Improve
+            <p className="text-[11px] font-bold text-orange-700 uppercase tracking-wide mb-1.5">
+              Weaknesses &amp; how to improve
             </p>
             <ul className="space-y-1">
               {result.improvements.map((s, i) => (
-                <li key={i} className="flex gap-2 text-xs text-gray-600">
-                  <span className="text-orange-500 mt-0.5 shrink-0">→</span>
+                <li key={i} className="flex gap-2 text-[13px] text-gray-700">
+                  <span className="text-orange-600 mt-0.5 shrink-0" aria-hidden="true">→</span>
                   {s}
                 </li>
               ))}
             </ul>
           </div>
         )}
-        {/* Explain more — deeper, quote-referenced elaboration on demand */}
-        {result.id && !result.detailedFeedback && (
-          <button
-            onClick={handleExplainMore}
-            disabled={loadingMore}
-            className="flex items-center gap-1.5 text-xs font-semibold text-green-700 hover:text-green-800 bg-transparent border-none cursor-pointer disabled:opacity-50">
-            {loadingMore ? (
-              <>
-                <Loader2 size={13} className="animate-spin" />
-                Getting a deeper explanation…
-              </>
-            ) : (
-              <>
-                <Sparkles size={13} />
-                Explain more
-              </>
-            )}
-          </button>
-        )}
-        {locked && (
-          <UpgradePrompt
-            decision={accessErrorDecision(locked)}
-            upgradeHref="/dashboard/billing"
-            featureLabel="The detailed breakdown"
-          />
-        )}
-        {error && <p className="text-xs text-red-500">{error}</p>}
-        {result.detailedFeedback && (
-          <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
-            <p className="text-[11px] font-bold text-amber-700 uppercase tracking-wide mb-1.5">
-              In more detail
+
+        {/* Stored (database) explanation — the authoritative starting point */}
+        {result.explanation && (
+          <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+            <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-green-900">
+              <Sparkles size={12} aria-hidden="true" /> Explanation
             </p>
-            <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">
-              {result.detailedFeedback}
-            </p>
+            <MarkdownContent text={result.explanation} className="!text-[13px] !leading-relaxed" />
           </div>
         )}
-        {/* Model answer toggle (always shown in exam post-submit; toggle in practice) */}
-        {modelAnswer && (
+
+        {scoreId && (
+          <ExplainWithAiButton
+            questionText={questionText ?? "Explain my answer and how to improve it"}
+            request={requestExplanation}
+            label={result.explanation ? "Explain more with Sabi" : "Explain with Sabi"}
+          />
+        )}
+
+        {mark && (
           <div>
             <button
+              type="button"
               onClick={onToggleSolution}
-              className="flex items-center gap-2 text-xs font-semibold text-green-800 hover:text-green-600 transition-colors mt-1">
-              <BookOpen size={13} />
+              aria-expanded={!!result.showSolution}
+              className="flex items-center gap-2 text-xs font-semibold text-green-900 hover:text-green-700 transition-colors">
+              <BookOpen size={13} aria-hidden="true" />
               {result.showSolution ? "Hide Model Answer" : "Show Model Answer"}
-              {result.showSolution ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+              {result.showSolution ? <ChevronUp size={13} aria-hidden="true" /> : <ChevronDown size={13} aria-hidden="true" />}
             </button>
             {result.showSolution && (
               <div className="mt-2 p-3 bg-green-50 rounded-lg border border-green-200">
-                <p className="text-[11px] font-bold text-green-800 uppercase tracking-wide mb-1.5">
+                <p className="text-[11px] font-bold text-green-900 uppercase tracking-wide mb-1.5">
                   Model Answer / Mark Scheme
                 </p>
-                <pre className="text-xs text-gray-700 whitespace-pre-wrap font-sans leading-relaxed">
-                  {modelAnswer}
-                </pre>
+                <MarkdownContent text={mark} className="!text-[13px] !leading-relaxed" />
               </div>
             )}
           </div>

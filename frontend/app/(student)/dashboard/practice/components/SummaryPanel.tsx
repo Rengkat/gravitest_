@@ -1,6 +1,7 @@
 import { PROFESSIONAL_EXAMS, SECONDARY_EXAMS, CANDIDATE_TYPE_OPTIONS } from "@/lib/constants/practice";
 import { PracticeConfig, CANDIDATE_TYPE_EXAMS } from "@/types/practice";
 import { ArrowRight } from "lucide-react";
+import { DEFAULT_EXAM_MINUTES } from "@/lib/session/sessionSettings";
 
 export default function SummaryPanel({
   config,
@@ -13,8 +14,6 @@ export default function SummaryPanel({
   onNext: () => void;
   isReady: boolean;
 }) {
-  const DEFAULT_TIME = 60;
-
   const exam =
     config.examType === "PROFESSIONAL"
       ? PROFESSIONAL_EXAMS.find((e) => e.id === config.professionalExam)
@@ -53,7 +52,7 @@ export default function SummaryPanel({
             ? `${config.numQuestions}`
             : "40",
     },
-    { label: "Time", value: `${config.timeLimit || DEFAULT_TIME} min` },
+    { label: "Time (Exam mode)", value: `${config.timeLimit || DEFAULT_EXAM_MINUTES} min` },
   ];
 
   return (

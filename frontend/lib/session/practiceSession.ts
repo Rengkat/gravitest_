@@ -11,6 +11,8 @@
 // to theory part, THEN complete" work without re-creating anything.
 
 import { PracticeConfig } from "@/types/practice";
+import { resolveSessionSettings } from "./sessionSettings";
+import { deadlineFromRemaining } from "./examClock";
 import {
   startExamSession,
   getExamSession,
@@ -118,6 +120,10 @@ export async function createPracticeSession(
           ? "practical"
           : "theory";
 
+  // Concrete numbers, resolved ONCE. Practice is untimed (no duration is sent);
+  // Exam always carries the duration the student saw in the wizard.
+  const settings = resolveSessionSettings(config, mode);
+
   const { session, questions } = await startExamSession({
     examType: toBackendExamType(config),
     candidateType: toBackendCandidateType(config),
@@ -125,9 +131,9 @@ export async function createPracticeSession(
     topic: config.topics?.[0],
     questionType,
     mode: toBackendMode(mode),
-    questionCount: config.numQuestions || 40,
-    theoryQuestionCount: isMixed ? config.numTheoryQuestions || 5 : undefined,
-    durationMinutes: config.timeLimit,
+    questionCount: settings.questionCount,
+    theoryQuestionCount: isMixed ? (settings.theoryQuestionCount ?? undefined) : undefined,
+    durationMinutes: settings.durationMinutes ?? undefined,
     year: config.year ? parseInt(config.year, 10) : undefined,
   });
 
@@ -165,6 +171,35 @@ export async function refreshPracticeSession(id: string): Promise<PracticeSessio
   const updated: PracticeSession = { ...cached, backendSession: session, questions };
   persist(updated);
   return updated;
+}
+
+/**
+ * Re-syncs with the server and returns the cached session plus the exam
+ * deadline derived from the SERVER's remaining time. Used on every player
+ * mount so a refresh resumes the countdown instead of restarting it.
+ */
+export async function syncPracticeSession(id: string): Promise<{
+  session: PracticeSession | null;
+  deadlineMs: number | null;
+}> {
+  const cached = getPracticeSession(id);
+  if (!cached) return { session: null, deadlineMs: null };
+  try {
+    const fresh = (await refreshPracticeSession(id)) ?? cached;
+    return {
+      session: fresh,
+      deadlineMs: deadlineFromRemaining(fresh.backendSession.remainingSeconds, Date.now()),
+    };
+  } catch {
+    // Offline / transient: fall back to the cached copy, derive time from startedAt.
+    const s = cached.backendSession;
+    const total = s.allowedDurationSeconds;
+    const deadline =
+      cached.mode === "exam" && total
+        ? new Date(s.startedAt).getTime() + total * 1000
+        : null;
+    return { session: cached, deadlineMs: deadline };
+  }
 }
 
 export function updatePracticeSession(
@@ -244,9 +279,37 @@ export async function completePart(
   }
 
   // Last part — actually submit the whole session for AI grading.
-  const finalSession = await completeExamSession(id);
-  updatePracticeSession(id, { backendSession: finalSession });
-  return { nextPart: null, isLastPart: true, finalSession };
+  // A second call while the first is still grading (double click, refresh, timer
+  // racing a manual submit) gets 409 from the server: that's not an error — the
+  // session IS being submitted, so wait for it instead of failing or re-submitting.
+  try {
+    const finalSession = await completeExamSession(id);
+    updatePracticeSession(id, { backendSession: finalSession });
+    return { nextPart: null, isLastPart: true, finalSession };
+  } catch (err) {
+    const status = (err as { response?: { status?: number } })?.response?.status;
+    if (status !== 409 && status !== 400) throw err;
+    // 409 = still grading; 400 = already submitted (e.g. server auto-submitted on expiry).
+    if (status === 400) {
+      const { session: current } = await getExamSession(id);
+      if (current.status === "in_progress") throw err; // a genuine validation error
+      updatePracticeSession(id, { backendSession: current });
+      return { nextPart: null, isLastPart: true, finalSession: current };
+    }
+    const finalSession = await waitUntilSubmitted(id);
+    updatePracticeSession(id, { backendSession: finalSession });
+    return { nextPart: null, isLastPart: true, finalSession };
+  }
+}
+
+/** Polls until the server reports the session is no longer in progress (max ~2 min). */
+async function waitUntilSubmitted(id: string): Promise<ExamSessionDto> {
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const { session } = await getExamSession(id);
+    if (session.status !== "in_progress") return session;
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+  throw new Error("Your session is still being graded. Please check your results again in a moment.");
 }
 
 export function clearPracticeSession(id: string) {

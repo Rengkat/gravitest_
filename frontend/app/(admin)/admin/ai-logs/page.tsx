@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useAIData } from "./useAIData";
 import { LoadingSpinner } from "./components/LoadingSinner";
+import { fmt } from "@/lib/format/fmt";
 
 function MetricCard({ icon: Icon, label, value, color, trend, sub }: any) {
   return (
@@ -76,9 +77,9 @@ export default function AILogsOverviewPage() {
         <MetricCard
           icon={DollarSign}
           label="Total AI Cost"
-          value={`$${costStats?.totalCostUsd?.toFixed(2) || "0"}`}
+          value={`$${fmt(costStats?.totalCostUsd, 2) || "0"}`}
           color="#f59e0b"
-          sub={`Today: $${costStats?.costToday?.toFixed(2) || "0"}`}
+          sub={`Today: $${fmt(costStats?.costToday, 2) || "0"}`}
         />
         <MetricCard
           icon={Zap}
@@ -101,7 +102,7 @@ export default function AILogsOverviewPage() {
         <MetricCard
           icon={Target}
           label="Avg Rating"
-          value={stats?.averageRating?.toFixed(1) || "0"}
+          value={fmt(stats?.averageRating, 1) || "0"}
           color="#f59e0b"
         />
         <MetricCard
@@ -128,7 +129,7 @@ export default function AILogsOverviewPage() {
                   <div className="flex justify-between mb-1">
                     <span className="text-[12px] text-green-900">{item.feature}</span>
                     <span className="text-[12px] font-bold text-green-900">
-                      ${item.cost.toFixed(2)}
+                      ${fmt(item.cost, 2)}
                     </span>
                   </div>
                   <div className="h-1.5 rounded-full bg-cream overflow-hidden">
@@ -160,7 +161,7 @@ export default function AILogsOverviewPage() {
                     {feature.count.toLocaleString()} req
                   </span>
                   <span className="text-[12px] font-bold text-green-900">
-                    ${feature.cost?.toFixed(2)}
+                    ${fmt(feature.cost, 2)}
                   </span>
                 </div>
               </div>
@@ -195,7 +196,7 @@ export default function AILogsOverviewPage() {
               <div className="text-right">
                 <div className="text-[10px] text-text-muted">{activity.time}</div>
                 <div className="text-[9px] text-green-700 font-mono">
-                  ${activity.cost?.toFixed(4)}
+                  ${fmt(activity.cost, 4)}
                 </div>
               </div>
             </div>

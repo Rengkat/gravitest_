@@ -8,9 +8,11 @@ interface TimeUpModalProps {
   isAnswered: (answer: Answer) => boolean;
   setShowTimeUpModal: Dispatch<SetStateAction<boolean>>;
   sessionId: string;
+  /** True while the auto-submission is still being graded — the button waits for it. */
+  isSubmitting?: boolean;
 }
 
-const TimeUpModal = ({ answers, isAnswered, setShowTimeUpModal, sessionId }: TimeUpModalProps) => {
+const TimeUpModal = ({ answers, isAnswered, setShowTimeUpModal, sessionId, isSubmitting = false }: TimeUpModalProps) => {
   const router = useRouter();
   return (
     <div
@@ -31,13 +33,14 @@ const TimeUpModal = ({ answers, isAnswered, setShowTimeUpModal, sessionId }: Tim
           </p>
           <p className="text-gray-400 text-xs mb-6">Your work has been saved and submitted.</p>
           <button
+            disabled={isSubmitting}
             onClick={() => {
               setShowTimeUpModal(false);
               router.push(`/dashboard/practice/session/${sessionId}/results`);
             }}
-            className="w-full py-3 bg-green-800 text-white rounded-xl font-bold hover:bg-green-700 transition-all flex items-center justify-center gap-2">
+            className="w-full py-3 bg-green-800 text-white rounded-xl font-bold hover:bg-green-700 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-wait">
             <Send size={16} />
-            View Results
+            {isSubmitting ? "Submitting your answers…" : "View Results"}
           </button>
         </div>
       </div>

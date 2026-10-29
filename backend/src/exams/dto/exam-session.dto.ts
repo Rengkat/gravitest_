@@ -134,6 +134,15 @@ export class SubmitAnswerDto {
   timeSpentSeconds?: number;
 }
 
+// Body for POST …/answers/:sessionQuestionId/score and …/regrade
+export class ScoreAnswerDto {
+  // Dot-path of ONE leaf of a structured question. When given, only that part
+  // is graded; omit to grade every part of the question.
+  @IsOptional()
+  @IsString()
+  path?: string;
+}
+
 export class FlagQuestionDto {
   @IsUUID()
   sessionQuestionId!: string;

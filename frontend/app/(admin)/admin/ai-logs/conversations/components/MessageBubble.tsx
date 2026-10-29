@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Bot, User, Copy, Check } from "lucide-react";
 import type { AIMessage } from "../../types";
 import { formatCost } from "../../components/AISessionDetails";
+import MarkdownContent from "@/Components/shared/MarkdownContent";
 
 interface Props {
   message: AIMessage;
@@ -57,13 +58,20 @@ export function MessageBubble({ message, isFlagged, flagReason }: Props) {
         )}
 
         <div
-          className={`px-3.5 py-2.5 rounded-2xl text-[13px] leading-relaxed relative whitespace-pre-line ${
+          className={`px-3.5 py-2.5 rounded-2xl text-[13px] leading-relaxed relative ${
+            isUser ? "whitespace-pre-line" : "min-w-0 overflow-x-auto"
+          } ${
             isUser
               ? "bg-green-800 text-white rounded-tr-sm"
               : "bg-white border text-green-900 rounded-tl-sm"
           } ${isFlagged ? "border-2 border-red-300" : ""}`}
           style={!isUser ? { borderColor: "rgba(30,80,50,0.1)" } : undefined}>
-          {message.content}
+          {/* The student's own message is plain typed text; the AI's reply is Markdown (headings, lists, bold, maths, code). */}
+          {isUser ? (
+            message.content
+          ) : (
+            <MarkdownContent text={message.content} className="!text-[13px] !leading-relaxed !text-green-900 pr-5" />
+          )}
 
           <button
             onClick={copy}

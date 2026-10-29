@@ -15,6 +15,7 @@ export function adaptToMcqQuestion(
   dto: SessionQuestionDto,
   index: number,
   revealedCorrectAnswer?: string,
+  revealedExplanation?: string,
 ): Question {
   const options = (dto.options ?? [])
     .slice()
@@ -26,6 +27,8 @@ export function adaptToMcqQuestion(
     text: dto.questionText,
     options,
     correctAnswer: revealedCorrectAnswer ?? "",
+    // The stored (database) explanation — only ever present once revealed.
+    explanation: revealedExplanation,
     subjectId: dto.subject,
     sessionQuestionId: dto.sessionQuestionId,
     questionId: dto.id,

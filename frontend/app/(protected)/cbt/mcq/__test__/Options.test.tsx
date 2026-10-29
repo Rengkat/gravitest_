@@ -89,3 +89,83 @@ describe("Options", () => {
     });
   });
 });
+
+// ── Practice mode: Check Answer + feedback (new behaviour) ─────────────
+vi.mock("@/lib/api/aiExplain", () => ({ explainMcqQuestion: vi.fn().mockResolvedValue({ explanation: "AI text" }) }));
+
+describe("Options — practice mode", () => {
+  const practice = { ...defaultProps, mode: "practice" as const, onCheckAnswer: vi.fn() };
+  const q = { ...mockQuestion, sessionQuestionId: "sq-5", questionId: "q-5" };
+
+  test("nothing is revealed before an attempt: no correct answer, no explanation", () => {
+    render(<Options {...practice} currentQuestion={q} currentSelectedOption="A" />);
+    expect(screen.queryByText(/correct answer/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Probability = 1\/2/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /explain (more )?with sabi/i })).not.toBeInTheDocument();
+  });
+
+  test("Check Answer is disabled until an option is chosen, then calls onCheckAnswer", () => {
+    const { rerender } = render(<Options {...practice} currentQuestion={q} currentSelectedOption={null} />);
+    expect(screen.getByRole("button", { name: /check answer/i })).toBeDisabled();
+    rerender(<Options {...practice} currentQuestion={q} currentSelectedOption="B" />);
+    fireEvent.click(screen.getByRole("button", { name: /check answer/i }));
+    expect(practice.onCheckAnswer).toHaveBeenCalledTimes(1);
+  });
+
+  test("wrong answer: reveals the correct answer, the stored explanation, and the Sabi button under it", () => {
+    render(
+      <Options
+        {...practice}
+        currentQuestion={q}
+        currentSelectedOption="B"
+        feedback={{ selectedLabel: "B", correctLabel: "C", isCorrect: false }}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(/correct answer is C/i);
+    expect(screen.getByText(/Probability = 1\/2/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /explain more with sabi/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /check answer/i })).not.toBeInTheDocument();
+    screen.getAllByRole("radio").forEach((r) => expect(r).toBeDisabled()); // locked after checking
+  });
+
+  test("correct answer: confirmation + explanation", () => {
+    render(
+      <Options
+        {...practice}
+        currentQuestion={q}
+        currentSelectedOption="C"
+        feedback={{ selectedLabel: "C", correctLabel: "C", isCorrect: true }}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(/correct! well done/i);
+    expect(screen.getByText(/Probability = 1\/2/)).toBeInTheDocument();
+  });
+
+  test("with no stored explanation the Sabi button reads Explain with Sabi", () => {
+    render(
+      <Options
+        {...practice}
+        currentQuestion={{ ...q, explanation: undefined }}
+        currentSelectedOption="B"
+        feedback={{ selectedLabel: "B", correctLabel: "C", isCorrect: false }}
+      />,
+    );
+    expect(screen.getByText(/no explanation is stored/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^explain with sabi$/i })).toBeInTheDocument();
+  });
+
+  test("Exam mode never renders feedback or Check Answer, even if feedback is passed by mistake", () => {
+    render(
+      <Options
+        {...defaultProps}
+        currentQuestion={q}
+        mode="exam"
+        currentSelectedOption="B"
+        feedback={{ selectedLabel: "B", correctLabel: "C", isCorrect: false }}
+      />,
+    );
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Probability = 1\/2/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /check answer/i })).not.toBeInTheDocument();
+  });
+});

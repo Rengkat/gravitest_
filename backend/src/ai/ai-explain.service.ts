@@ -1,4 +1,5 @@
 import {
+  ForbiddenException,
   Inject,
   Injectable,
   Logger,
@@ -7,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import type Redis from 'ioredis';
-import { IsNull, Repository } from 'typeorm';
+import { DataSource, IsNull, Repository } from 'typeorm';
 
 import { AiExplanationCache } from './entities/ai-explanation-cache.entity';
 import { AiRouterService } from './ai-router.service';
@@ -17,6 +18,10 @@ import { ExplainQuestionDto } from './dto/explain-question.dto';
 import { QuestionsService } from 'src/questions/questions.service';
 import { AIFeature } from 'src/common/enums/enums';
 import { REDIS_CLIENT } from 'src/redis/redis.module';
+import { SessionQuestion } from 'src/students/entities/session-questions.entity';
+import { StudentProfile } from 'src/students/entities/student-profile.entity';
+import { ExamMode, SessionStatus } from 'src/common/enums/enums';
+import { decideExplainAccess, type OpenSessionUse } from './utils/explain-access.util';
 
 // How long "this student already used a free allowance on this exact
 // explanation" is remembered. Re-opening the same question inside this window
@@ -35,6 +40,7 @@ export class AiExplainService {
     private readonly promptService: AiPromptService,
     private readonly rateLimitService: AiRateLimitService,
     private readonly questionsService: QuestionsService,
+    private readonly dataSource: DataSource,
 
     // Optional: without Redis the only effect is that re-opening an
     // explanation counts against a free allowance again (fail-safe, never open).
@@ -46,6 +52,13 @@ export class AiExplainService {
     dto: ExplainQuestionDto,
   ): Promise<{ explanation: string; cached: boolean }> {
     const detailLevel = dto.detailLevel ?? 'standard';
+
+    // 0. SERVER-SIDE ANSWER-REVEAL GUARD. An explanation states the correct
+    //    answer, so it must be refused while an exam containing this question
+    //    is open, and (in practice) until the student has attempted it. Derived
+    //    from the student's own open sessions, so it cannot be dodged by
+    //    omitting or forging a client-supplied session id.
+    await this.assertExplainAllowed(userId, dto.questionId);
 
     // 1. ACCESS FIRST. Explanations are cached and shared across students, so
     //    checking access only on a cache miss would hand every cached
@@ -89,14 +102,50 @@ export class AiExplainService {
       detailLevel,
     );
 
-    const result = await this.router.complete({
-      feature: AIFeature.SABI_EXPLAIN,
-      userId,
-      systemPrompt: basePrompt,
-      messages: [{ role: 'user', content: userContent }],
-      relatedEntityType: 'explanation',
-      relatedEntityId: dto.questionId,
-    });
+    // If the question has a diagram, the model must actually SEE it — a bare
+    // URL in the prompt is not an image. Try real vision first; if no vision
+    // model/image is reachable, fall back to text-only and say so explicitly so
+    // the model does not pretend to have inspected the figure.
+    const imageUrl: string | null = question.questionImageUrl ?? null;
+    let result;
+    if (imageUrl) {
+      try {
+        result = await this.router.complete({
+          feature: AIFeature.SABI_EXPLAIN,
+          userId,
+          systemPrompt: basePrompt,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: userContent },
+                { type: 'image_url', imageUrl },
+              ],
+            },
+          ],
+          relatedEntityType: 'explanation',
+          relatedEntityId: dto.questionId,
+          requiresVision: true,
+        });
+      } catch (err) {
+        this.logger.warn(
+          `Vision explain failed for question ${dto.questionId}, retrying text-only: ${(err as Error).message}`,
+        );
+      }
+    }
+    if (!result) {
+      const note = imageUrl
+        ? '\n\nNOTE: this question has a diagram that you cannot see. Rely only on the question text and the explanation on file; do not describe or invent details of the diagram.'
+        : '';
+      result = await this.router.complete({
+        feature: AIFeature.SABI_EXPLAIN,
+        userId,
+        systemPrompt: basePrompt,
+        messages: [{ role: 'user', content: userContent + note }],
+        relatedEntityType: 'explanation',
+        relatedEntityId: dto.questionId,
+      });
+    }
 
     const cacheRow = this.cacheRepository.create({
       questionId: dto.questionId,
@@ -109,6 +158,31 @@ export class AiExplainService {
     await this.cacheRepository.save(cacheRow);
 
     return { explanation: result.text, cached: false };
+  }
+
+  /** Throws 403 when the student's open sessions forbid revealing this question's answer. */
+  private async assertExplainAllowed(userId: string, questionId: string): Promise<void> {
+    const rows = await this.dataSource
+      .getRepository(SessionQuestion)
+      .createQueryBuilder('sq')
+      .innerJoin('sq.examSession', 's')
+      .innerJoin(StudentProfile, 'p', 'p.id = s.studentProfileId')
+      .leftJoin('sq.studentAnswer', 'a')
+      .where('sq.questionId = :questionId', { questionId })
+      .andWhere('p.user_id = :userId', { userId })
+      .andWhere('s.status = :status', { status: SessionStatus.IN_PROGRESS })
+      .select('s.mode', 'mode')
+      .addSelect('a.id', 'answerId')
+      .getRawMany<{ mode: ExamMode; answerId: string | null }>();
+
+    const open: OpenSessionUse[] = rows.map((r) => ({
+      mode: r.mode === ExamMode.MOCK ? 'mock' : 'practice',
+      answered: !!r.answerId,
+    }));
+    const decision = decideExplainAccess(open);
+    if (!decision.allowed) {
+      throw new ForbiddenException({ code: decision.reason, message: decision.message });
+    }
   }
 
   private async wasUnlocked(key: string): Promise<boolean> {
@@ -149,14 +223,23 @@ export class AiExplainService {
       `Question: ${question.questionText}`,
       options ? `Options:\n${options}` : '',
       correctLabel ? `Correct answer: ${correctLabel}` : '',
+      question.modelAnswer
+        ? `Model answer / mark scheme:\n${question.modelAnswer}`
+        : '',
       existingExplanation
         ? `Existing explanation on file: ${existingExplanation}`
         : '',
       studentAnswerLabel
         ? `The student answered "${studentAnswerLabel}". Explain specifically why that option is wrong (if it is) and why "${correctLabel}" is correct.`
-        : `Explain clearly why "${correctLabel}" is the correct answer and briefly why the other options are wrong.`,
+        : correctLabel
+          ? `Explain clearly why "${correctLabel}" is the correct answer and briefly why the other options are wrong.`
+          : 'This is a written (theory/practical) question. Explain step by step how to reach the correct answer, the key ideas and marks a strong answer must contain, and the most common mistakes.',
+      'The "explanation on file" (when present) is the official, authoritative explanation. Build on it: ' +
+        'never contradict it, never change the correct answer, and do not invent facts it does not support. ' +
+        'Write in Markdown (short headings, numbered steps, bullet lists, **bold** key terms); put maths in \\( \\) or \\[ \\] LaTeX.',
       'Keep the explanation encouraging and easy to follow for a Nigerian secondary school / JAMB student.',
     ];
+
 
     if (detailLevel === 'detailed') {
       parts.push(

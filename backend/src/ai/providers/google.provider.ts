@@ -182,24 +182,29 @@ export class GoogleProvider implements AiProvider {
         parts.push({ text: part.text });
         continue;
       }
+      // The model must receive the real image bytes. If they cannot be fetched
+      // we FAIL the request instead of quietly grading/explaining on text alone
+      // — silently dropping the image would let the AI claim it inspected a
+      // diagram it never saw and award marks on that basis.
+      let res: Response;
       try {
-        const res = await fetch(part.imageUrl, {
+        res = await fetch(part.imageUrl, {
           signal: AbortSignal.timeout(IMAGE_FETCH_TIMEOUT_MS),
         });
-        if (!res.ok) continue;
-        // Strip any "; charset=…" suffix — Gemini wants a bare MIME type.
-        const mimeType = (res.headers.get('content-type') ?? 'image/jpeg')
-          .split(';')[0]
-          .trim();
-        const buffer = Buffer.from(await res.arrayBuffer());
-        parts.push({
-          inlineData: { mimeType, data: buffer.toString('base64') },
-        });
-      } catch {
-        // Image fetch failed (e.g. R2 not provisioned yet) — skip it
-        // rather than fail the whole completion; the model just scores
-        // on text context alone for this one image.
+      } catch (err) {
+        throw new Error(`Could not fetch image for vision input: ${(err as Error).message}`);
       }
+      if (!res.ok) {
+        throw new Error(`Could not fetch image for vision input (HTTP ${res.status}).`);
+      }
+      // Strip any "; charset=…" suffix — Gemini wants a bare MIME type.
+      const mimeType = (res.headers.get('content-type') ?? 'image/jpeg')
+        .split(';')[0]
+        .trim();
+      const buffer = Buffer.from(await res.arrayBuffer());
+      parts.push({
+        inlineData: { mimeType, data: buffer.toString('base64') },
+      });
     }
     return parts;
   }

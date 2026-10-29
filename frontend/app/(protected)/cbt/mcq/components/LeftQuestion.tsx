@@ -1,7 +1,7 @@
 import { CheckCircle, ChevronLeft, ChevronRight, Volume2, VolumeX } from "lucide-react";
 import Image from "next/image";
 import QuestionText from "./QuestionText";
-import Options from "./Options";
+import Options, { type McqFeedback } from "./Options";
 import PassagePanel from "../../../components/PassagePanel";
 import { Question } from "@/lib/constants/mcq";
 import { SessionMode } from "@/lib/session/practiceSession";
@@ -18,8 +18,10 @@ interface LeftQuestionProps {
   handleReadAloud: () => void;
   /** Practice vs exam — controls whether the answer can be revealed mid-session */
   mode?: SessionMode;
-  /** Practice mode: has this question's correct answer already been revealed */
-  isRevealed?: boolean;
+  /** Practice mode: feedback for this question once checked (null before an attempt). */
+  feedback?: McqFeedback | null;
+  onCheckAnswer?: () => void;
+  isChecking?: boolean;
 }
 
 const LeftQuestion = ({
@@ -33,7 +35,9 @@ const LeftQuestion = ({
   handleReadAloud,
   isSpeaking,
   mode = "exam",
-  isRevealed = false,
+  feedback = null,
+  onCheckAnswer,
+  isChecking = false,
 }: LeftQuestionProps) => {
   return (
     <div className="lg:col-span-2">
@@ -101,7 +105,9 @@ const LeftQuestion = ({
           currentSelectedOption={currentSelectedOption}
           handleSelectOption={handleSelectOption}
           mode={mode}
-          isRevealed={isRevealed}
+          feedback={feedback}
+          onCheckAnswer={onCheckAnswer}
+          isChecking={isChecking}
         />
 
         {/* Navigation buttons */}

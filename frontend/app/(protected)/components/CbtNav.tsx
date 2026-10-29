@@ -8,7 +8,8 @@ interface CbtNavProps {
   handleFlagQuestion: () => void;
   isCurrentFlagged: boolean;
   isLowTime: boolean;
-  timeRemaining: number;
+  /** Seconds left in Exam mode. null = Practice (untimed): no countdown is shown. */
+  timeRemaining: number | null;
 }
 
 const CbtNav = ({
@@ -56,16 +57,26 @@ const CbtNav = ({
           </button>
         </div>
 
-        {/* Timer */}
-        <div
-          className={`px-4 py-1.5 rounded-lg font-mono font-bold text-[15px] flex items-center gap-2 ${
-            isLowTime ? "bg-red-500 text-white" : "bg-gold text-green-900"
-          }`}
-          aria-live="polite"
-          aria-label={`Time remaining: ${formatTime(timeRemaining)}`}>
-          <Clock size={16} aria-hidden="true" />
-          <span>{formatTime(timeRemaining)}</span>
-        </div>
+        {/* Timer — Exam mode only. Practice is untimed and shows a label instead. */}
+        {timeRemaining === null ? (
+          <div
+            className="px-4 py-1.5 rounded-lg bg-white/15 text-white font-semibold text-[13px]"
+            data-testid="untimed-badge">
+            Practice · Untimed
+          </div>
+        ) : (
+          <div
+            role="timer"
+            aria-live="off"
+            className={`px-4 py-1.5 rounded-lg font-mono font-bold text-[15px] flex items-center gap-2 ${
+              isLowTime ? "bg-red-500 text-white" : "bg-gold text-green-900"
+            }`}
+            aria-label={`Time remaining: ${formatTime(timeRemaining)}`}>
+            <Clock size={16} aria-hidden="true" />
+            <span>{formatTime(timeRemaining)}</span>
+            {isLowTime && <span className="sr-only">Time is running low</span>}
+          </div>
+        )}
       </div>
     </nav>
   );

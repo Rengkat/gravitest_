@@ -368,94 +368,113 @@ describe("upload panel", () => {
 });
 
 // ════════════════════════════════════════════════════════════════
-// 6. POST-SUBMIT — PRACTICE MODE
+// 6. PRACTICE MODE — per-part "Check Answer"
 // ════════════════════════════════════════════════════════════════
 
-describe("post-submit: practice mode", () => {
-  test("shows Score with AI button after submission when no aiResult", () => {
-    renderComponent({ isSubmitted: true, mode: "practice" });
-    expect(screen.getByRole("button", { name: /score with ai/i })).toBeInTheDocument();
+describe("practice mode: Check Answer for this part", () => {
+  const answered = { ...baseAnswer, content: "F = ma" };
+
+  test("shows an accessible Check Answer button naming the part", () => {
+    renderComponent({ answer: answered, hasAnswer: true });
+    expect(screen.getByRole("button", { name: /check answer for 1a/i })).toBeEnabled();
   });
 
-  test("calls onAIScore when the AI button is clicked", async () => {
+  test("calls onAIScore (for this part only) when clicked", async () => {
     const onAIScore = vi.fn();
-    renderComponent({ isSubmitted: true, mode: "practice", onAIScore });
-
-    await userEvent.click(screen.getByRole("button", { name: /score with ai/i }));
-
+    renderComponent({ answer: answered, hasAnswer: true, onAIScore });
+    await userEvent.click(screen.getByRole("button", { name: /check answer for 1a/i }));
     expect(onAIScore).toHaveBeenCalledTimes(1);
   });
 
-  test("hides AI button and renders AIResultPanel when aiResult is provided", () => {
-    renderComponent({
-      isSubmitted: true,
-      mode: "practice",
-      aiResult: mockAIResult,
-    });
-
-    expect(screen.queryByRole("button", { name: /score with ai/i })).not.toBeInTheDocument();
-    expect(screen.getByTestId("ai-result-panel")).toBeInTheDocument();
+  test("is disabled, with a hint, until something has been answered", () => {
+    renderComponent({ hasAnswer: false });
+    expect(screen.getByRole("button", { name: /check answer/i })).toBeDisabled();
+    expect(screen.getByText(/write or upload an answer for this part first/i)).toBeInTheDocument();
   });
 
-  test("passes feedback text to AIResultPanel", () => {
-    renderComponent({
-      isSubmitted: true,
-      mode: "practice",
-      aiResult: mockAIResult,
-    });
+  test("is disabled and shows progress while THIS part is being graded", () => {
+    renderComponent({ answer: answered, hasAnswer: true, isGrading: true });
+    const btn = screen.getByRole("button", { name: /check answer/i });
+    expect(btn).toBeDisabled();
+    expect(screen.getByText(/checking your answer/i)).toBeInTheDocument();
+  });
 
+  test("hides the button and shows the result once graded", () => {
+    renderComponent({ answer: answered, hasAnswer: true, aiResult: mockAIResult });
+    expect(screen.queryByRole("button", { name: /^check answer/i })).not.toBeInTheDocument();
+    expect(screen.getByTestId("ai-result-panel")).toBeInTheDocument();
     expect(screen.getByText("Good attempt.")).toBeInTheDocument();
   });
 
-  test("calls onToggleSolution when AIResultPanel fires the toggle", async () => {
-    const onToggleSolution = vi.fn();
+  test("a failed grading shows an alert with Try again and keeps the typed answer", async () => {
+    const onAIScore = vi.fn();
     renderComponent({
-      isSubmitted: true,
-      mode: "practice",
-      aiResult: mockAIResult,
-      onToggleSolution,
+      answer: answered,
+      hasAnswer: true,
+      gradeError: "This part could not be graded right now.",
+      onAIScore,
     });
+    expect(screen.getByRole("alert")).toHaveTextContent(/could not be graded/i);
+    expect(screen.getByDisplayValue("F = ma")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /try again/i }));
+    expect(onAIScore).toHaveBeenCalledTimes(1);
+  });
 
+  test("editing after grading marks the grade stale and offers Check Answer again", () => {
+    renderComponent({ answer: answered, hasAnswer: true, aiResult: mockAIResult, isStale: true });
+    expect(screen.getByText(/feedback below is for your earlier version/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /check answer again/i })).toBeInTheDocument();
+  });
+
+  test("calls onToggleSolution when the result panel fires the toggle", async () => {
+    const onToggleSolution = vi.fn();
+    renderComponent({ aiResult: mockAIResult, onToggleSolution });
     await userEvent.click(screen.getByRole("button", { name: /toggle solution/i }));
-
     expect(onToggleSolution).toHaveBeenCalledTimes(1);
+  });
+
+  test("two parts render independent state (one graded, one not)", () => {
+    render(
+      <>
+        <SubQuestionAnswer {...defaultProps} subQuestion={{ ...mockSubQuestion, id: "a", label: "(a)" }} aiResult={mockAIResult} hasAnswer />
+        <SubQuestionAnswer {...defaultProps} subQuestion={{ ...mockSubQuestion, id: "b", label: "(b)" }} hasAnswer isGrading />
+      </>,
+    );
+    expect(screen.getAllByTestId("ai-result-panel")).toHaveLength(1);
+    expect(screen.getAllByText(/checking your answer/i)).toHaveLength(1);
   });
 });
 
 // ════════════════════════════════════════════════════════════════
-// 7. POST-SUBMIT — EXAM MODE
+// 7. EXAM MODE — nothing is revealed while the exam is in progress
 // ════════════════════════════════════════════════════════════════
 
-describe("post-submit: exam mode", () => {
-  test("shows model answer directly without AI button", () => {
-    renderComponent({ isSubmitted: true, mode: "exam" });
-
-    expect(screen.queryByRole("button", { name: /score with ai/i })).not.toBeInTheDocument();
-    expect(screen.getByText("The answer is 42.")).toBeInTheDocument();
+describe("exam mode", () => {
+  test("never offers Check Answer or any feedback during the exam", () => {
+    renderComponent({ mode: "exam", hasAnswer: true });
+    expect(screen.queryByRole("button", { name: /check answer/i })).not.toBeInTheDocument();
+    expect(screen.queryByText("The answer is 42.")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("ai-result-panel")).not.toBeInTheDocument();
   });
 
-  test("shows the Model Answer heading", () => {
-    renderComponent({ isSubmitted: true, mode: "exam" });
-    expect(screen.getByText(/model answer/i)).toBeInTheDocument();
-  });
-
-  test("does not show model answer block when subQuestion has no modelAnswer", () => {
-    renderComponent({
-      isSubmitted: true,
-      mode: "exam",
-      subQuestion: { ...mockSubQuestion, modelAnswer: undefined },
-    });
+  test("does not leak the model answer even if the sub-question carries one", () => {
+    renderComponent({ mode: "exam", isSubmitted: false });
     expect(screen.queryByText(/model answer/i)).not.toBeInTheDocument();
   });
+});
 
-  test("hides model answer and shows AIResultPanel when aiResult is provided", () => {
-    renderComponent({
-      isSubmitted: true,
-      mode: "exam",
-      aiResult: mockAIResult,
-    });
+// ════════════════════════════════════════════════════════════════
+// 8. AFTER SUBMISSION — read-only view of any attached result
+// ════════════════════════════════════════════════════════════════
 
-    expect(screen.queryByText("The answer is 42.")).not.toBeInTheDocument();
+describe("after submission", () => {
+  test("renders an attached AI result read-only", () => {
+    renderComponent({ isSubmitted: true, aiResult: mockAIResult });
     expect(screen.getByTestId("ai-result-panel")).toBeInTheDocument();
+  });
+
+  test("offers no grading button once submitted", () => {
+    renderComponent({ isSubmitted: true, mode: "practice" });
+    expect(screen.queryByRole("button", { name: /check answer/i })).not.toBeInTheDocument();
   });
 });

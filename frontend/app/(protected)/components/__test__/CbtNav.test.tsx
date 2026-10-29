@@ -24,9 +24,18 @@ describe("CbtNav", () => {
       expect(timer).toHaveClass("bg-red-500");
     });
 
-    test("has polite aria-live for screen readers", () => {
+    test("is a timer that does not announce every second to screen readers", () => {
       render(<CbtNav {...baseProps} />);
-      expect(screen.getByLabelText(/time remaining/i)).toHaveAttribute("aria-live", "polite");
+      const timer = screen.getByRole("timer");
+      expect(timer).toHaveAttribute("aria-live", "off");
+      expect(timer).toHaveAccessibleName(/time remaining/i);
+    });
+
+    test("Practice (timeRemaining = null) shows no countdown at all", () => {
+      render(<CbtNav {...baseProps} timeRemaining={null} />);
+      expect(screen.queryByRole("timer")).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(/time remaining/i)).not.toBeInTheDocument();
+      expect(screen.getByTestId("untimed-badge")).toHaveTextContent(/untimed/i);
     });
   });
 

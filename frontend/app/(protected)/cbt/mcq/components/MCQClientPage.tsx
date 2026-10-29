@@ -12,14 +12,20 @@ import LeftQuestion from "./LeftQuestion";
 import SubmitModel from "./SubmitModel";
 import CbtNav from "../../../components/CbtNav";
 import CalculatorModal from "../../../components/CalculatorModal";
+import SessionProblem from "../../components/SessionProblem";
 import {
   getPracticeSession,
+  syncPracticeSession,
   completePart,
   partRoute,
   resultsRoute,
   SessionMode,
   type McqAnswerSubmission,
+  type PracticeSession,
 } from "@/lib/session/practiceSession";
+import { useExamCountdown } from "@/lib/session/useExamCountdown";
+import { buildExamSummary, validateSessionForPlay } from "@/lib/session/examSummary";
+import type { McqFeedback } from "./Options";
 import { submitAnswer as apiSubmitAnswer } from "@/lib/api/exams";
 import { adaptToMcqQuestion } from "@/lib/mcq/mcqAdapter";
 import { buildInitialAnswers } from "@/lib/mcq/buildInitialAnswers";
@@ -35,7 +41,29 @@ export default function CBTExamClientPage({ id }: { id: string }) {
   const router = useRouter();
   const sessionId = id as string;
 
-  const session = useMemo(() => getPracticeSession(sessionId), [sessionId]);
+  // Cached copy first (instant), then re-synced with the SERVER on mount so the
+  // exam clock and saved answers survive a refresh.
+  const [session, setSession] = useState<PracticeSession | null>(() => getPracticeSession(sessionId));
+  const [deadlineMs, setDeadlineMs] = useState<number | null>(null);
+  const [synced, setSynced] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    syncPracticeSession(sessionId).then(({ session: fresh, deadlineMs: d }) => {
+      if (cancelled) return;
+      if (fresh) setSession(fresh);
+      setDeadlineMs(d);
+      setSynced(true);
+      // Already submitted (e.g. the server auto-submitted after time ran out): never let the
+      // student back into the exam — go to the results.
+      if (fresh && fresh.backendSession.status !== "in_progress") {
+        router.replace(resultsRoute(sessionId));
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, router]);
 
   // Real MCQ questions for this session, grouped by subject — one flat
   // list from the backend (a mixed mcq+theory session includes both
@@ -58,12 +86,12 @@ export default function CBTExamClientPage({ id }: { id: string }) {
     }));
   }, [mcqQuestionsBySubject]);
 
-  const mode: SessionMode = session?.mode ?? "exam";
+  // No silent default: without a session there is nothing to play (the guard below explains why).
+  const mode: SessionMode = session?.mode ?? "practice";
   const [examStarted, setExamStarted] = useState(false);
   const [currentSubject, setCurrentSubject] = useState<SubjectId>(SUBJECTS[0]?.id ?? "");
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [allAnswers, setAllAnswers] = useState<AllAnswers>({});
-  const [timeRemaining, setTimeRemaining] = useState((session?.config.timeLimit ?? 120) * 60);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -71,9 +99,11 @@ export default function CBTExamClientPage({ id }: { id: string }) {
   // Practice-mode reveal data returned by the backend right after each
   // submitted answer — keyed by sessionQuestionId since that's the only
   // stable real identifier (array index resets when switching subjects).
-  const [revealedData, setRevealedData] = useState<Record<string, { correctLabel: string; explanation?: string }>>(
-    {},
-  );
+  const [revealedData, setRevealedData] = useState<
+    Record<string, { correctLabel: string; explanation?: string; isCorrect: boolean; selectedLabel: string }>
+  >({});
+  // Per-question "check in flight" — one question's request never disables another.
+  const [checkingIds, setCheckingIds] = useState<ReadonlySet<string>>(new Set());
   const [isFinishing, setIsFinishing] = useState(false);
 
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
@@ -86,7 +116,10 @@ export default function CBTExamClientPage({ id }: { id: string }) {
   // existing player UI expects — revealed correct answers merged in.
   const currentQuestions: Question[] = useMemo(() => {
     const dtos = mcqQuestionsBySubject[currentSubject] ?? [];
-    return dtos.map((dto, i) => adaptToMcqQuestion(dto, i, revealedData[dto.sessionQuestionId]?.correctLabel));
+    return dtos.map((dto, i) => {
+      const r = revealedData[dto.sessionQuestionId];
+      return adaptToMcqQuestion(dto, i, r?.correctLabel, r?.explanation);
+    });
   }, [mcqQuestionsBySubject, currentSubject, revealedData]);
 
   const currentAnswers: Answer[] = useMemo(
@@ -97,14 +130,37 @@ export default function CBTExamClientPage({ id }: { id: string }) {
   const currentQuestion = currentQuestions[currentQuestionIndex];
   const totalQuestions = currentQuestions.length;
 
+  // Runs when the SUBJECT changes (or the exam starts) — not whenever a reveal updates
+  // `currentQuestions`. It used to depend on currentQuestions, so every Check Answer
+  // snapped the student back to question 1.
+  const currentQuestionsRef = useRef(currentQuestions);
+  currentQuestionsRef.current = currentQuestions;
   useEffect(() => {
     if (!examStarted) return;
     setAllAnswers((prev: Record<SubjectId, Answer[]>) => {
       if (prev[currentSubject]) return prev;
-      return { ...prev, [currentSubject]: buildInitialAnswers(currentQuestions) };
+      return { ...prev, [currentSubject]: buildInitialAnswers(currentQuestionsRef.current) };
     });
     setCurrentQuestionIndex(0);
-  }, [currentSubject, examStarted, currentQuestions]);
+  }, [currentSubject, examStarted]);
+
+  // Restore the student's own saved selections after a refresh (server-held, MCQ is saved on every pick).
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (!synced || !session || hydratedRef.current) return;
+    hydratedRef.current = true;
+    const restored: AllAnswers = {};
+    for (const [subj, dtos] of Object.entries(mcqQuestionsBySubject)) {
+      const base = buildInitialAnswers(dtos.map((dto, i) => adaptToMcqQuestion(dto, i)));
+      restored[subj] = base.map((a, i) => ({
+        ...a,
+        selectedOption: dtos[i].savedAnswer?.selectedLabel ?? null,
+        isFlagged: dtos[i].isFlagged ?? false,
+        isVisited: a.isVisited || !!dtos[i].savedAnswer,
+      }));
+    }
+    setAllAnswers((prev) => ({ ...restored, ...prev }));
+  }, [synced, session, mcqQuestionsBySubject]);
 
   // ── Finish this part: submit everything, hand off to next part or results ──
   const finishMcqPart = useCallback(async () => {
@@ -139,26 +195,19 @@ export default function CBTExamClientPage({ id }: { id: string }) {
     }
   }, [session, sessionId, allAnswers, mcqQuestionsBySubject, router]);
 
-  // ── Timer ──────────────────────────────────────────────
+  // ── Timer (Exam mode only) ─────────────────────────────
+  // Derived from the SERVER's remaining time, so a refresh cannot reset it. Practice
+  // passes no deadline → no countdown, no interval. onExpire fires once.
   const handleAutoSubmit = useCallback(() => {
     setIsSubmitted(true);
     finishMcqPart();
   }, [finishMcqPart]);
 
-  useEffect(() => {
-    if (!examStarted || isSubmitted) return;
-    const timer = setInterval(() => {
-      setTimeRemaining((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          handleAutoSubmit();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [examStarted, isSubmitted, handleAutoSubmit]);
+  const timeRemaining = useExamCountdown(
+    mode === "exam" ? deadlineMs : null,
+    synced && examStarted && !isSubmitted,
+    handleAutoSubmit,
+  );
 
   // ── Answer helpers ─────────────────────────────────────
   const updateCurrentSubjectAnswers = useCallback(
@@ -174,31 +223,75 @@ export default function CBTExamClientPage({ id }: { id: string }) {
   const handleSelectOption = useCallback(
     (optionLetter: string) => {
       if (isSubmitted || !currentQuestion) return;
+      const sqId = currentQuestion.sessionQuestionId;
+      // Practice: once a question has been checked its answer is locked.
+      if (mode === "practice" && sqId && revealedData[sqId]) return;
       updateCurrentSubjectAnswers((prev) =>
         prev.map((ans, idx) =>
           idx === currentQuestionIndex ? { ...ans, selectedOption: optionLetter } : ans,
         ),
       );
 
-      // Submit immediately — cheap (no AI cost for MCQ), and in practice
-      // mode this is what unlocks the correct-answer reveal.
-      const sqId = currentQuestion.sessionQuestionId;
+      // Practice: only the selection changes here — the answer is submitted (and
+      // feedback revealed) when the student presses Check Answer.
+      if (mode === "practice") return;
+
+      // Exam: save quietly on every pick (so a refresh keeps it). The server returns
+      // nothing about correctness in Exam mode.
       if (!sqId) return;
-      apiSubmitAnswer(sessionId, { sessionQuestionId: sqId, selectedLabel: optionLetter })
-        .then((res) => {
-          if (res.correctLabel) {
-            setRevealedData((prev) => ({
-              ...prev,
-              [sqId]: { correctLabel: res.correctLabel!, explanation: res.explanation },
-            }));
-          }
-        })
-        .catch(() => {
-          // Non-fatal — the bulk submission in finishMcqPart is a safety net.
-        });
+      apiSubmitAnswer(sessionId, { sessionQuestionId: sqId, selectedLabel: optionLetter }).catch((err) => {
+        const code = (err as { response?: { data?: { code?: string } } })?.response?.data?.code;
+        if (code === "time_expired") {
+          // The server has already closed the exam — go straight to the results.
+          setIsSubmitted(true);
+          router.replace(resultsRoute(sessionId));
+          return;
+        }
+        // Not fatal: the bulk submission in finishMcqPart is a safety net — but say so.
+        toast.error("Couldn't save that answer yet. We'll retry when you submit.", { id: "mcq-save-warning" });
+      });
     },
-    [isSubmitted, currentQuestionIndex, currentQuestion, updateCurrentSubjectAnswers, sessionId],
+    [
+      isSubmitted,
+      currentQuestionIndex,
+      currentQuestion,
+      updateCurrentSubjectAnswers,
+      sessionId,
+      mode,
+      revealedData,
+      router,
+    ],
   );
+
+  // Practice: submit THIS question's selected answer and reveal its feedback.
+  const handleCheckAnswer = useCallback(async () => {
+    if (mode !== "practice" || !currentQuestion) return;
+    const sqId = currentQuestion.sessionQuestionId;
+    const selected = currentAnswers[currentQuestionIndex]?.selectedOption;
+    if (!sqId || !selected || revealedData[sqId] || checkingIds.has(sqId)) return; // no duplicate requests
+    setCheckingIds((prev) => new Set(prev).add(sqId));
+    try {
+      const res = await apiSubmitAnswer(sessionId, { sessionQuestionId: sqId, selectedLabel: selected });
+      if (!res.correctLabel) throw new Error("The server did not return feedback for this question.");
+      setRevealedData((prev) => ({
+        ...prev,
+        [sqId]: {
+          correctLabel: res.correctLabel!,
+          explanation: res.explanation,
+          isCorrect: res.isCorrect ?? res.correctLabel === selected,
+          selectedLabel: selected,
+        },
+      }));
+    } catch (err) {
+      toast.error(extractErrorMessage(err));
+    } finally {
+      setCheckingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(sqId);
+        return next;
+      });
+    }
+  }, [mode, currentQuestion, currentAnswers, currentQuestionIndex, revealedData, checkingIds, sessionId]);
 
   const handleFlagQuestion = useCallback(() => {
     if (isSubmitted) return;
@@ -335,16 +428,40 @@ export default function CBTExamClientPage({ id }: { id: string }) {
     [currentAnswers],
   );
 
-  const isLowTime = timeRemaining < 300;
+  const isLowTime = timeRemaining !== null && timeRemaining < 300;
 
   // ── Guards ─────────────────────────────────────────────
-  if (!examStarted) {
-    return <InstructionsPage onStart={() => setExamStarted(true)} />;
+  // An unloadable / invalid configuration is reported explicitly — never papered over with defaults.
+  const problem = validateSessionForPlay(session, "mcq");
+  if (problem && !isFinishing) {
+    return <SessionProblem message={problem} />;
   }
-
-  if (!session || !currentQuestion || isFinishing) {
+  if (!session || !synced) {
     return <ExamLoader />;
   }
+
+  if (!examStarted) {
+    return (
+      <InstructionsPage
+        onStart={() => setExamStarted(true)}
+        summary={buildExamSummary(session, "mcq", Object.values(mcqQuestionsBySubject).flat().length)}
+      />
+    );
+  }
+
+  if (!currentQuestion || isFinishing) {
+    return <ExamLoader />;
+  }
+
+  const currentSqId = currentQuestion.sessionQuestionId ?? "";
+  const currentFeedback: McqFeedback | null =
+    mode === "practice" && revealedData[currentSqId]
+      ? {
+          selectedLabel: revealedData[currentSqId].selectedLabel,
+          correctLabel: revealedData[currentSqId].correctLabel,
+          isCorrect: revealedData[currentSqId].isCorrect,
+        }
+      : null;
 
   /* ── RENDER ─────────────────────────────────────────── */
   return (
@@ -375,7 +492,7 @@ export default function CBTExamClientPage({ id }: { id: string }) {
         <button
           onClick={() => setShowSubmitModal(true)}
           className="bg-green-800 text-white px-6 py-2 rounded-lg text-[13px] font-bold hover:bg-green-700 transition-all">
-          Submit
+          {mode === "practice" ? "Finish" : "Submit"}
         </button>
       </div>
 
@@ -413,7 +530,9 @@ export default function CBTExamClientPage({ id }: { id: string }) {
             totalQuestions={totalQuestions}
             handleReadAloud={handleReadAloud}
             mode={mode}
-            isRevealed={!!revealedData[currentQuestion.sessionQuestionId ?? ""]}
+            feedback={currentFeedback}
+            onCheckAnswer={handleCheckAnswer}
+            isChecking={checkingIds.has(currentSqId)}
             isSpeaking={isSpeaking}
           />
           <div>

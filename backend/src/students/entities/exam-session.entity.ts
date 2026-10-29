@@ -192,6 +192,11 @@ export class ExamSession {
     }
   }
 
+  /** Re-derives percentage/scaledScore after questionsCorrect changed (e.g. a late regrade). */
+  recalculate(): void {
+    this.calculateScores();
+  }
+
   complete(): void {
     this.status = SessionStatus.SUBMITTED;
     this.completedAt = new Date();

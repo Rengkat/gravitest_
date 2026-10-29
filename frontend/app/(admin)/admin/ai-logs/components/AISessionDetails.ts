@@ -68,14 +68,15 @@ export const STATUS_CONFIG: Record<string, { label: string; color: string; bg: s
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-export function formatTokens(tokens: number): string {
+export function formatTokens(rawTokens: number | string): string {
+  const tokens = Number(rawTokens) || 0;
   if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(2)}M`;
   if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(1)}K`;
   return `${tokens}`;
 }
 
-export function formatCost(cost: number): string {
+export function formatCost(rawCost: number | string | null | undefined): string {
+  const cost = Number(rawCost) || 0;
   if (cost < 0.01) return `$${cost.toFixed(4)}`;
   return `$${cost.toFixed(3)}`;
 }

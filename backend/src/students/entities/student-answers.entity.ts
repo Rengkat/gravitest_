@@ -58,6 +58,9 @@ export class StudentAnswer {
         feedback: string;
         strengths: string[];
         improvements: string[];
+        // 'failed' = the AI call for this part errored; it carries no grade and
+        // can be retried. Absent on older rows (= scored).
+        status?: 'scored' | 'failed';
       }[]
     | null;
 

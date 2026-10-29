@@ -6,4 +6,4 @@
 const CURRENT_YEAR = new Date().getFullYear();
 export const YEARS = Array.from({ length: 11 }, (_, i) => (CURRENT_YEAR - i).toString());
 export const QUESTION_COUNTS = [10, 20, 30, 40, 50, 60];
-export const DEFAULT_TIME = 60;
+export { DEFAULT_EXAM_MINUTES as DEFAULT_TIME } from "@/lib/session/sessionSettings";

@@ -1,17 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Download, BarChart3, ArrowLeft, User, FileX2, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { getPracticeSession } from "@/lib/session/practiceSession";
-import type { Question } from "@/lib/constants/mcq";
 import { getExamResults, type ResultsBreakdownItem, type ExamSessionDto } from "@/lib/api/exams";
 import { extractErrorMessage } from "@/lib/api/client";
 import { PROFESSIONAL_EXAMS, SECONDARY_EXAMS } from "@/lib/constants/practice";
 import McqResultSection, { McqSubjectResult } from "./McqResultSection";
-import TheoryResultSection, { TheoryQuestionResult } from "./TheoryResultSection";
-import AskSabiModal from "./AskSabiModal";
+import TheoryResultSection from "./TheoryResultSection";
+import { buildTheoryResults } from "@/lib/results/buildTheoryResults";
 import {
   downloadResultPdf,
   McqBreakdownRow,
@@ -29,8 +28,12 @@ export default function PracticeResultsPage() {
   const [loading, setLoading] = useState(true);
   const [backendSession, setBackendSession] = useState<ExamSessionDto | null>(null);
   const [breakdown, setBreakdown] = useState<ResultsBreakdownItem[]>([]);
-  const [askSabiQuestion, setAskSabiQuestion] = useState<Question | null>(null);
-  const [askSabiSelected, setAskSabiSelected] = useState<string | null>(null);
+
+  const loadResults = useCallback(async () => {
+    const res = await getExamResults(sessionId);
+    setBackendSession(res.session);
+    setBreakdown(res.breakdown);
+  }, [sessionId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,9 +55,16 @@ export default function PracticeResultsPage() {
     };
   }, [sessionId]);
 
+  // Exam Mode is the only mode with a formal score. Practice is a learning review.
+  const showScores = backendSession?.mode === "mock";
+
   // ── MCQ breakdown ──────────────────────────────────────
   const mcqItems = useMemo(() => breakdown.filter((b) => b.question.type === "mcq"), [breakdown]);
-  const theoryItems = useMemo(() => breakdown.filter((b) => b.question.type === "theory"), [breakdown]);
+  // Practical questions are written in theory form and were previously dropped from the results entirely.
+  const theoryItems = useMemo(
+    () => breakdown.filter((b) => b.question.type === "theory" || b.question.type === "practical"),
+    [breakdown],
+  );
 
   const mcqSubjects: McqSubjectResult[] = useMemo(() => {
     const bySubject = new Map<string, ResultsBreakdownItem[]>();
@@ -86,42 +96,8 @@ export default function PracticeResultsPage() {
   const mcqTotal = mcqItems.length;
   const mcqPct = mcqTotal ? Math.round((mcqCorrect / mcqTotal) * 100) : 0;
 
-  // ── Theory breakdown ───────────────────────────────────
-  const theoryQuestions: TheoryQuestionResult[] = useMemo(() => {
-    return theoryItems.map((item, i) => ({
-      id: item.sessionQuestionId,
-      title: `Question ${i + 1}`,
-      marksGot: item.yourAnswer?.awardedScore ?? 0,
-      marksTotal: item.yourAnswer?.maxScore ?? item.question.maxScore ?? 10,
-      subQuestions: [
-        {
-          sub: {
-            id: item.sessionQuestionId,
-            label: `${i + 1}.`,
-            text: item.question.questionText ?? "",
-            marks: item.question.maxScore ?? 10,
-            imageUrl: item.question.questionImageUrl ?? undefined,
-          },
-          result: item.yourAnswer
-            ? {
-                score: item.yourAnswer.awardedScore ?? 0,
-                maxScore: item.yourAnswer.maxScore ?? item.question.maxScore ?? 10,
-                feedback:
-                  item.yourAnswer.aiFeedback ??
-                  (item.yourAnswer.scoringStatus === "pending"
-                    ? "This answer is still awaiting grading — check back shortly."
-                    : item.yourAnswer.scoringStatus === "needs_review"
-                      ? "AI grading had low confidence on this one — a human review is pending."
-                      : ""),
-                strengths: item.yourAnswer.aiStrengths ?? [],
-                improvements: item.yourAnswer.aiImprovements ?? [],
-                showSolution: false,
-              }
-            : undefined,
-        },
-      ],
-    }));
-  }, [theoryItems]);
+  // ── Theory / practical breakdown (per part, keyed by stable ids) ──
+  const theoryQuestions = useMemo(() => buildTheoryResults(theoryItems), [theoryItems]);
 
   const theoryScore = theoryItems.reduce((sum, i) => sum + (i.yourAnswer?.awardedScore ?? 0), 0);
   const theoryMax = theoryItems.reduce(
@@ -150,6 +126,8 @@ export default function PracticeResultsPage() {
   }, [cachedSession, backendSession]);
 
   const modeLabel = backendSession?.mode === "mock" ? "Exam Mode" : "Practice Mode";
+  const autoSubmitted = backendSession?.status === "timed_out";
+  const ungradedCount = theoryQuestions.filter((q) => q.status === "ungraded").length;
 
   const handleDownload = async () => {
     if (!backendSession) return;
@@ -183,10 +161,10 @@ export default function PracticeResultsPage() {
             percentage: theoryPct,
             rows: theoryQuestions.map(
               (q): TheoryBreakdownRow => ({
-                questionNumber: typeof q.id === "number" ? q.id : 0,
+                questionNumber: Number(q.title.match(/\d+/)?.[0] ?? 0),
                 marksGot: q.marksGot,
                 marksTotal: q.marksTotal,
-                subQuestions: q.subQuestions.map(({ sub, result }) => ({
+                subQuestions: q.parts.map(({ sub, result }) => ({
                   label: sub.label,
                   text: sub.text,
                   marksGot: result?.score ?? 0,
@@ -250,16 +228,36 @@ export default function PracticeResultsPage() {
         </button>
 
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-          <p className="text-[12px] text-gray-400 mb-1">Practice Result</p>
+          <p className="text-[12px] text-gray-600 mb-1">{showScores ? "Exam Result" : "Practice Review"}</p>
           <h1 className="text-[20px] font-extrabold text-gray-800 mb-1">{examLabel}</h1>
           <p className="text-[12px] text-gray-400 mb-4">
             {modeLabel} · Session {sessionId.slice(0, 8)}
           </p>
 
-          <div className="mb-5 p-4 rounded-xl bg-green-50 border border-green-200 flex items-center justify-between">
-            <span className="text-[13px] font-bold text-green-800">Overall Score</span>
-            <span className="text-[20px] font-extrabold text-green-800">{overallPct}%</span>
-          </div>
+          {autoSubmitted && (
+            <p role="status" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-[13px] font-semibold text-amber-900">
+              Time ran out, so this exam was submitted automatically with the answers you had saved.
+            </p>
+          )}
+
+          {showScores ? (
+            <div className="mb-5 p-4 rounded-xl bg-green-50 border border-green-200 flex items-center justify-between">
+              <span className="text-[13px] font-bold text-green-900">Overall Score</span>
+              <span className="text-[20px] font-extrabold text-green-900">{overallPct}%</span>
+            </div>
+          ) : (
+            <p className="mb-5 rounded-xl border border-green-200 bg-green-50 p-4 text-[13px] text-green-900">
+              Practice sessions are for learning, so no formal score is calculated. Open any question below to
+              review the answer, the explanation and AI feedback.
+            </p>
+          )}
+
+          {showScores && ungradedCount > 0 && (
+            <p role="alert" className="mb-5 rounded-xl border border-red-300 bg-red-50 p-3 text-[13px] font-semibold text-red-900">
+              {ungradedCount} written {ungradedCount === 1 ? "answer" : "answers"} could not be graded automatically and{" "}
+              {ungradedCount === 1 ? "isn't" : "aren't"} counted yet. Open the question and press “Retry grading”.
+            </p>
+          )}
 
           {backendSession.xpEarned > 0 && (
             <div className="mb-5 p-3 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between">
@@ -281,12 +279,14 @@ export default function PracticeResultsPage() {
           />
 
           <div className="flex flex-col sm:flex-row gap-3">
+            {showScores && (
             <button
               onClick={handleDownload}
               disabled={isDownloading}
               className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-green-800 text-white rounded-xl text-sm font-bold hover:bg-green-700 transition-all disabled:opacity-60">
               <Download size={16} /> {isDownloading ? "Preparing…" : "Download Result"}
             </button>
+            )}
             <button
               onClick={() => router.push("/dashboard/performance")}
               className="flex-1 flex items-center justify-center gap-2 px-5 py-3 border-2 border-gray-200 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-50 transition-all">
@@ -297,19 +297,19 @@ export default function PracticeResultsPage() {
 
         {hasMcq && (
           <McqResultSection
+            showScores={showScores}
             correct={mcqCorrect}
             total={mcqTotal}
             percentage={mcqPct}
             subjects={mcqSubjects}
-            onAskSabi={(q, selected) => {
-              setAskSabiQuestion(q);
-              setAskSabiSelected(selected);
-            }}
           />
         )}
 
         {hasTheory && (
           <TheoryResultSection
+            sessionId={sessionId}
+            showScores={showScores}
+            onRegraded={loadResults}
             totalScore={theoryScore}
             maxScore={theoryMax}
             percentage={theoryPct}
@@ -318,11 +318,6 @@ export default function PracticeResultsPage() {
         )}
       </div>
 
-      <AskSabiModal
-        question={askSabiQuestion}
-        studentAnswerLabel={askSabiSelected}
-        onClose={() => setAskSabiQuestion(null)}
-      />
     </div>
   );
 }

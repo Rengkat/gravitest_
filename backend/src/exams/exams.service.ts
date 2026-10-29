@@ -1,4 +1,12 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 
@@ -21,8 +29,10 @@ import {
 } from './dto/exam-session.dto';
 import { flattenEssayParts } from 'src/questions/utils/flatten-essay-parts.util';
 import { NotificationsService } from 'src/notifications/notifications.service';
+import { isPastDeadline, remainingSeconds } from './utils/exam-timing.util';
 
 const ESSAY_TYPES = new Set([QuestionType.THEORY, QuestionType.PRACTICAL]);
+type PartScoreRow = NonNullable<StudentAnswer['partScores']>[number];
 const ESSAY_PASS_RATIO = 0.5; // awardedScore/maxScore at/above this counts toward questionsCorrect
 
 // XP model (applies to every session type — MCQ, theory, practical, mixed):
@@ -45,9 +55,15 @@ function essayScoreRatio(answer: StudentAnswer): number {
   return Math.min(1, Math.max(0, awarded / max));
 }
 
+/** Internal signal: some parts of a structured answer failed to grade (others did). */
+class PartialGradingError extends Error {}
+
 @Injectable()
 export class ExamsService {
   private readonly logger = new Logger(ExamsService.name);
+  // Sessions currently being graded/finalised by THIS process. Stops a double-click,
+  // a refresh or a timer-expiry racing a manual submit from running completion twice.
+  private readonly completing = new Set<string>();
 
   constructor(
     @InjectRepository(ExamSession)
@@ -141,6 +157,15 @@ export class ExamsService {
       }
     }
 
+    // Time limit belongs to Exam (mock) mode only. Practice is untimed by design,
+    // so any duration sent with a practice request is ignored; an exam without a
+    // duration is rejected instead of silently getting a made-up default.
+    if (dto.mode === ExamMode.MOCK && !dto.durationMinutes) {
+      throw new BadRequestException('Exam mode requires a duration (durationMinutes).');
+    }
+    const allowedDurationSeconds =
+      dto.mode === ExamMode.MOCK && dto.durationMinutes ? dto.durationMinutes * 60 : null;
+
     // Free/paid gate for past-question practice vs timed mocks (admin-editable
     // rules). Deliberately AFTER the pool is validated so a request that would
     // have failed anyway never burns a free-quota use.
@@ -161,7 +186,7 @@ export class ExamsService {
         difficulty: dto.difficulty ?? null,
         sessionTitle: dto.sessionTitle ?? null,
         startedAt: new Date(),
-        allowedDurationSeconds: dto.durationMinutes ? dto.durationMinutes * 60 : null,
+        allowedDurationSeconds,
         status: SessionStatus.IN_PROGRESS,
         totalQuestions: pool.length,
         metadata: {
@@ -182,7 +207,7 @@ export class ExamsService {
       await manager.save(SessionQuestion, sessionQuestions);
 
       return {
-        session: savedSession,
+        session: this.presentSession(savedSession),
         questions: pool.map((q, i) => this.sanitizeQuestion(q, sessionQuestions[i].id)),
       };
     });
@@ -190,7 +215,13 @@ export class ExamsService {
 
   // ─── FETCH (resume an in-progress session) ─────────────────────────────
   async getSession(userId: string, sessionId: string) {
-    const session = await this.loadOwnedSession(userId, sessionId);
+    let session = await this.loadOwnedSession(userId, sessionId);
+    // Refreshing (or reopening the link) after the clock ran out must not give the
+    // student a way back in: the exam is finalised here, server-side.
+    if (session.status === SessionStatus.IN_PROGRESS && this.isExpiredExam(session)) {
+      await this.autoSubmitExpired(userId, session);
+      session = await this.loadOwnedSession(userId, sessionId);
+    }
     const sessionQuestions = await this.sessionQuestionRepo.find({
       where: { examSession: { id: sessionId } },
       relations: ['studentAnswer'],
@@ -205,13 +236,25 @@ export class ExamsService {
     });
     const byId = new Map(questions.map((q) => [q.id, q]));
 
+    const inProgress = session.status === SessionStatus.IN_PROGRESS;
     return {
-      session,
+      session: this.presentSession(session),
       questions: sessionQuestions.map((sq) => ({
         ...this.sanitizeQuestion(byId.get(sq.questionId)!, sq.id),
         isAnswered: sq.isAnswered,
         isFlagged: sq.isFlagged,
-        yourAnswer: session.status === SessionStatus.IN_PROGRESS ? undefined : sq.studentAnswer,
+        yourAnswer: inProgress ? undefined : sq.studentAnswer,
+        // The student's OWN saved input, so a refresh restores their work. Never
+        // includes correctness or scores — those stay hidden while in progress.
+        savedAnswer:
+          inProgress && sq.studentAnswer
+            ? {
+                selectedLabel: sq.studentAnswer.selectedLabel,
+                essayText: sq.studentAnswer.essayText,
+                essayImageUrls: sq.studentAnswer.essayImageUrls,
+                partAnswers: sq.studentAnswer.partAnswers,
+              }
+            : undefined,
       })),
     };
   }
@@ -221,6 +264,15 @@ export class ExamsService {
     const session = await this.loadOwnedSession(userId, sessionId);
     if (session.status !== SessionStatus.IN_PROGRESS) {
       throw new BadRequestException('This session has already been submitted.');
+    }
+    // Past the deadline (+ grace) nothing more is accepted: the exam is
+    // auto-submitted with what was saved in time.
+    if (this.isExpiredExam(session)) {
+      await this.autoSubmitExpired(userId, session);
+      throw new BadRequestException({
+        code: 'time_expired',
+        message: 'Time is up — your exam was submitted automatically.',
+      });
     }
 
     const sessionQuestion = await this.sessionQuestionRepo.findOne({
@@ -243,12 +295,32 @@ export class ExamsService {
     if (isEssay && leaves.length && dto.partAnswers?.length) {
       // Structured (nested) question: keep one answer per leaf. Unknown
       // paths are dropped so a client can't smuggle in extra parts.
-      const byPath = new Map(dto.partAnswers.map((p) => [p.path, p]));
-      const partAnswers = leaves.map((leaf) => ({
-        path: leaf.path,
-        essayText: byPath.get(leaf.path)?.essayText ?? '',
-        essayImageUrls: byPath.get(leaf.path)?.essayImageUrls ?? [],
-      }));
+      // MERGE by path: only the parts present in this request change. Parts the
+      // student did not send keep their saved answer AND their grade, so saving or
+      // grading one sub-question can never wipe another sub-question's work.
+      const givenByPath = new Map(dto.partAnswers.map((p) => [p.path, p]));
+      const prevByPath = new Map((answer?.partAnswers ?? []).map((p) => [p.path, p]));
+      const changedPaths = new Set<string>();
+      const partAnswers = leaves.map((leaf) => {
+        const given = givenByPath.get(leaf.path);
+        const prev = prevByPath.get(leaf.path);
+        if (!given) return prev ?? { path: leaf.path, essayText: '', essayImageUrls: [] as string[] };
+        const next = {
+          path: leaf.path,
+          essayText: given.essayText ?? '',
+          essayImageUrls: given.essayImageUrls ?? [],
+        };
+        if (
+          !prev ||
+          prev.essayText !== next.essayText ||
+          JSON.stringify(prev.essayImageUrls ?? []) !== JSON.stringify(next.essayImageUrls)
+        ) {
+          changedPaths.add(leaf.path);
+        }
+        return next;
+      });
+      // A grade is stale only if THAT part's answer changed.
+      const keptScores = (answer?.partScores ?? []).filter((ps) => !changedPaths.has(ps.path));
       const draft = this.answerRepo.create({
         selectedLabel: null,
         selectedOptionId: null,
@@ -260,9 +332,11 @@ export class ExamsService {
           .join('\n\n'),
         essayImageUrls: partAnswers.flatMap((p) => p.essayImageUrls),
         partAnswers,
-        partScores: null, // any earlier scores are stale once answers change
+        partScores: keptScores.length ? keptScores : null,
         aiEssayScoreId: null,
-        awardedScore: null,
+        awardedScore: keptScores.length
+          ? keptScores.reduce((sum, ps) => sum + (ps.status === 'failed' ? 0 : ps.awardedScore), 0)
+          : null,
         scoringStatus: EssayScoringStatus.PENDING,
         maxScore: leaves.reduce((sum, l) => sum + l.maxScore, 0) || (question.maxScore ?? 10),
         isCorrect: false,
@@ -336,11 +410,17 @@ export class ExamsService {
    * controller enforces that), since exam mode shouldn't leak scores
    * mid-session.
    */
-  async scoreAnswerNow(userId: string, sessionId: string, sessionQuestionId: string) {
+  async scoreAnswerNow(
+    userId: string,
+    sessionId: string,
+    sessionQuestionId: string,
+    path?: string,
+  ) {
     const session = await this.loadOwnedSession(userId, sessionId);
     if (session.status !== SessionStatus.IN_PROGRESS) {
       throw new BadRequestException('This session has already been submitted.');
     }
+    // Server-side rule, not a UI nicety: Exam Mode never grades or reveals anything mid-session.
     if (session.mode !== ExamMode.PRACTICE) {
       throw new ForbiddenException('Instant scoring is only available in practice mode.');
     }
@@ -353,11 +433,25 @@ export class ExamsService {
       throw new NotFoundException('Answer not found — submit an answer before scoring it.');
     }
 
-    const question = await this.questionRepo.findOne({ where: { id: sq.questionId } });
+    const question = await this.questionRepo.findOne({
+      where: { id: sq.questionId },
+      relations: ['explanations'],
+    });
     if (!question) throw new NotFoundException('Question not found.');
 
     const aiSettings = await this.aiSettingsService.get();
-    const structured = !!sq.studentAnswer.partAnswers?.length && flattenEssayParts(question.structure).length > 0;
+    const leaves = flattenEssayParts(question.structure);
+    const structured = !!sq.studentAnswer.partAnswers?.length && leaves.length > 0;
+    if (path !== undefined && (!structured || !leaves.some((l) => l.path === path))) {
+      throw new BadRequestException('Unknown question part.');
+    }
+
+    // What the student gets to see once this question/part has been graded:
+    // the stored (database) explanation and the official mark scheme.
+    const reveal = {
+      modelAnswer: question.modelAnswer ?? undefined,
+      explanation: question.explanations?.[0]?.text ?? undefined,
+    };
 
     let score: {
       id: string | null;
@@ -368,22 +462,51 @@ export class ExamsService {
       improvements: string[];
       confidence: number;
     };
-    let parts: NonNullable<StudentAnswer['partScores']> | undefined;
+    let parts: PartScoreRow[] | undefined;
 
     if (structured) {
-      const graded = await this.scoreStructuredAnswer(userId, question, sq.studentAnswer, 'practice');
-      parts = graded.parts;
-      sq.studentAnswer.partScores = graded.parts;
+      const graded = await this.scoreStructuredAnswer(userId, question, sq.studentAnswer, 'practice', {
+        onlyPath: path,
+        reuse: sq.studentAnswer.partScores ?? [],
+      });
+      // A single requested part that failed is an error the UI can retry — nothing is saved as a grade.
+      if (path !== undefined && graded.failedPaths.includes(path)) {
+        throw new ServiceUnavailableException({
+          code: 'ai_grading_unavailable',
+          message: 'This part could not be graded right now. Your answer is saved — please try again.',
+        });
+      }
+      // Merge with what was already graded (other parts keep their own grade).
+      const merged = new Map<string, PartScoreRow>(
+        (sq.studentAnswer.partScores ?? []).map((p) => [p.path, p]),
+      );
+      for (const p of graded.parts) {
+        if (p.status !== 'failed') merged.set(p.path, p);
+        else if (!merged.has(p.path)) merged.set(p.path, p);
+      }
+      const all = leaves.map((l) => merged.get(l.path)).filter((p): p is PartScoreRow => !!p);
+      sq.studentAnswer.partScores = all;
+      const ok = all.filter((p) => p.status !== 'failed');
       score = {
         id: null,
-        aiScore: graded.total,
-        maxScore: graded.max,
+        aiScore: ok.reduce((sum, p) => sum + p.awardedScore, 0),
+        maxScore: leaves.reduce((sum, l) => sum + l.maxScore, 0),
         aiFeedback: '',
         strengths: [],
         improvements: [],
-        confidence: graded.minConfidence,
+        confidence: ok.length ? Math.min(...ok.map((p) => p.confidence)) : 1,
       };
       sq.studentAnswer.aiEssayScoreId = null;
+      parts = path !== undefined ? all.filter((p) => p.path === path) : all;
+      const fullyGraded = all.length >= leaves.filter((l) => l.maxScore >= 1).length && graded.failedPaths.length === 0 && ok.length === all.length;
+      sq.studentAnswer.awardedScore = score.aiScore;
+      sq.studentAnswer.maxScore = score.maxScore;
+      // Partially graded stays PENDING so completion only scores what is still missing.
+      sq.studentAnswer.scoringStatus = !fullyGraded
+        ? EssayScoringStatus.PENDING
+        : Number(score.confidence) < Number(aiSettings.autoFlagThreshold)
+          ? EssayScoringStatus.NEEDS_REVIEW
+          : EssayScoringStatus.SCORED;
     } else {
       const single = await this.aiScoringService.scoreEssay(userId, {
         questionId: question.id,
@@ -404,14 +527,13 @@ export class ExamsService {
         confidence: Number(single.confidence),
       };
       sq.studentAnswer.aiEssayScoreId = single.id;
+      sq.studentAnswer.awardedScore = score.aiScore;
+      sq.studentAnswer.maxScore = score.maxScore;
+      sq.studentAnswer.scoringStatus =
+        Number(score.confidence) < Number(aiSettings.autoFlagThreshold)
+          ? EssayScoringStatus.NEEDS_REVIEW
+          : EssayScoringStatus.SCORED;
     }
-
-    sq.studentAnswer.awardedScore = score.aiScore;
-    sq.studentAnswer.maxScore = score.maxScore;
-    sq.studentAnswer.scoringStatus =
-      Number(score.confidence) < Number(aiSettings.autoFlagThreshold)
-        ? EssayScoringStatus.NEEDS_REVIEW
-        : EssayScoringStatus.SCORED;
     await this.answerRepo.save(sq.studentAnswer);
 
     if (sq.studentAnswer.scoringStatus === EssayScoringStatus.NEEDS_REVIEW && aiSettings.notifyOnFlagged) {
@@ -428,15 +550,37 @@ export class ExamsService {
         .catch((err) => this.logger.error(`Essay-needs-review admin alert failed: ${err.message}`));
     }
 
-    return { ...score, parts };
+    return {
+      ...score,
+      parts,
+      ...reveal,
+      // AI result = an automated estimate, never a teacher-verified grade.
+      gradedBy: 'ai' as const,
+      needsReview: sq.studentAnswer.scoringStatus === EssayScoringStatus.NEEDS_REVIEW,
+    };
   }
 
   // ─── COMPLETE ───────────────────────────────────────────────────────────
   async completeSession(userId: string, sessionId: string) {
+    if (this.completing.has(sessionId)) {
+      throw new ConflictException('This session is already being submitted.');
+    }
+    this.completing.add(sessionId);
+    try {
+      return await this.runCompletion(userId, sessionId);
+    } finally {
+      this.completing.delete(sessionId);
+    }
+  }
+
+  private async runCompletion(userId: string, sessionId: string) {
     const session = await this.loadOwnedSession(userId, sessionId);
     if (session.status !== SessionStatus.IN_PROGRESS) {
       throw new BadRequestException('This session has already been submitted.');
     }
+    // Captured BEFORE grading starts (AI grading can take a while): was the
+    // submission itself late? Decides submitted vs timed-out below.
+    const submittedLate = this.isExpiredExam(session);
 
     const sessionQuestions = await this.sessionQuestionRepo.find({
       where: { examSession: { id: sessionId } },
@@ -457,6 +601,7 @@ export class ExamsService {
     let questionsCorrect = 0;
     let questionsAttempted = 0;
     let essaysNeedingReview = 0;
+    let essaysUngraded = 0;
     let answerXp = 0;
     const aiSettings = await this.aiSettingsService.get();
     const subjectTally = new Map<string, { correct: number; total: number; attempted: number }>();
@@ -493,8 +638,20 @@ export class ExamsService {
             !!sq.studentAnswer.partAnswers?.length && flattenEssayParts(question.structure).length > 0;
           let score: { id: string | null; aiScore: number; maxScore: number; confidence: number };
           if (isStructured) {
-            const graded = await this.scoreStructuredAnswer(userId, question, sq.studentAnswer, scoreMode);
+            const graded = await this.scoreStructuredAnswer(userId, question, sq.studentAnswer, scoreMode, {
+              reuse: sq.studentAnswer.partScores ?? [],
+            });
             sq.studentAnswer.partScores = graded.parts;
+            if (graded.failedPaths.length) {
+              // Keep every part that DID grade, but leave the answer PENDING so the
+              // student sees a clear "could not be graded" status and can retry.
+              sq.studentAnswer.awardedScore = graded.total;
+              sq.studentAnswer.maxScore = graded.max;
+              await this.answerRepo.save(sq.studentAnswer);
+              counted = false;
+              essaysUngraded += 1;
+              throw new PartialGradingError();
+            }
             score = { id: null, aiScore: graded.total, maxScore: graded.max, confidence: graded.minConfidence };
           } else {
             const single = await this.aiScoringService.scoreEssay(userId, {
@@ -524,12 +681,15 @@ export class ExamsService {
           await this.answerRepo.save(sq.studentAnswer);
         } catch (err) {
           // Most likely cause: free-tier's small daily AI cap was hit
-          // mid-exam. Don't fail the whole submission — leave it PENDING
-          // so an admin/teacher can score it manually, and the student
-          // still gets their MCQ results immediately.
-          this.logger.warn(
-            `Essay auto-scoring failed for answer ${sq.studentAnswer.id}, leaving PENDING for manual review: ${(err as Error).message}`,
-          );
+          // mid-exam, or the AI provider errored. Don't fail the whole
+          // submission — leave it PENDING (a real, visible status with a retry
+          // path) and keep grading every other question.
+          if (!(err instanceof PartialGradingError)) {
+            essaysUngraded += 1;
+            this.logger.warn(
+              `Essay auto-scoring failed for answer ${sq.studentAnswer.id}, leaving PENDING: ${(err as Error).message}`,
+            );
+          }
           counted = false;
         }
       } else if (isEssay) {
@@ -576,6 +736,14 @@ export class ExamsService {
     }));
 
     session.complete(); // entity method: sets status/completedAt/timeSpentSeconds + percentage/scaledScore
+    if (submittedLate) {
+      // Auto-submitted because the clock ran out (not a voluntary submit).
+      session.status = SessionStatus.TIMED_OUT;
+      session.timeSpentSeconds = session.allowedDurationSeconds ?? session.timeSpentSeconds;
+    }
+    if (essaysUngraded > 0) {
+      this.logger.warn(`Session ${sessionId}: ${essaysUngraded} essay answer(s) left ungraded (retry available).`);
+    }
 
     // XP: see the model at the top of this file. Mock exams get a completion
     // bonus (vs. free-form practice) to nudge students toward full attempts.
@@ -703,6 +871,8 @@ export class ExamsService {
             options: question?.options,
             correctLabel: question?.answer?.correctLabel,
             explanations: question?.explanations,
+            // Revealed here because getResults only works AFTER the session is submitted.
+            modelAnswer: question?.modelAnswer ?? null,
             maxScore: question?.maxScore,
             structure: question?.structure ?? null,
             passage: question?.passage
@@ -735,6 +905,111 @@ export class ExamsService {
             : null,
         };
       }),
+    };
+  }
+
+  // ─── REGRADE (retry a failed AI grading after submission) ──────────────
+  /**
+   * Retries grading for an essay answer that was left PENDING at submission
+   * because the AI call failed. Only the missing/failed parts are graded —
+   * existing grades are reused untouched — and session totals are updated so
+   * the result and the question's counted-correct status stay consistent.
+   */
+  async regradeAnswer(userId: string, sessionId: string, sessionQuestionId: string) {
+    if (this.completing.has(sessionId)) {
+      throw new ConflictException('This session is still being graded — try again in a moment.');
+    }
+    const session = await this.loadOwnedSession(userId, sessionId);
+    if (session.status === SessionStatus.IN_PROGRESS) {
+      throw new BadRequestException('Submit the session first.');
+    }
+    const sq = await this.sessionQuestionRepo.findOne({
+      where: { id: sessionQuestionId, examSession: { id: sessionId } },
+      relations: ['studentAnswer'],
+    });
+    const answer = sq?.studentAnswer;
+    if (!sq || !answer) throw new NotFoundException('Answer not found in this session.');
+    if (answer.scoringStatus !== EssayScoringStatus.PENDING) {
+      throw new BadRequestException('This answer does not need regrading.');
+    }
+    const question = await this.questionRepo.findOne({ where: { id: sq.questionId } });
+    if (!question || !ESSAY_TYPES.has(question.type)) {
+      throw new BadRequestException('Only theory/practical answers can be regraded.');
+    }
+
+    const aiSettings = await this.aiSettingsService.get();
+    const scoreMode = session.mode === ExamMode.MOCK ? 'exam' : 'practice';
+    const leaves = flattenEssayParts(question.structure);
+    const structured = !!answer.partAnswers?.length && leaves.length > 0;
+
+    let aiScore: number;
+    let maxScore: number;
+    let confidence: number;
+    if (structured) {
+      const graded = await this.scoreStructuredAnswer(userId, question, answer, scoreMode, {
+        reuse: answer.partScores ?? [],
+      });
+      answer.partScores = graded.parts;
+      if (graded.failedPaths.length) {
+        answer.awardedScore = graded.total;
+        answer.maxScore = graded.max;
+        await this.answerRepo.save(answer);
+        throw new ServiceUnavailableException({
+          code: 'ai_grading_unavailable',
+          message: 'Some parts still could not be graded. The ones that worked were saved — please retry.',
+        });
+      }
+      aiScore = graded.total;
+      maxScore = graded.max;
+      confidence = graded.minConfidence;
+    } else {
+      const single = await this.aiScoringService.scoreEssay(userId, {
+        questionId: question.id,
+        questionText: question.questionText,
+        studentAnswer: answer.essayText ?? '',
+        modelAnswer: question.modelAnswer ?? undefined,
+        diagramImageUrls: answer.essayImageUrls?.length ? answer.essayImageUrls : undefined,
+        maxScore: question.maxScore ?? 10,
+        mode: scoreMode,
+      });
+      answer.aiEssayScoreId = single.id;
+      aiScore = single.aiScore;
+      maxScore = single.maxScore;
+      confidence = Number(single.confidence);
+    }
+
+    answer.awardedScore = aiScore;
+    answer.maxScore = maxScore;
+    answer.scoringStatus =
+      confidence < Number(aiSettings.autoFlagThreshold)
+        ? EssayScoringStatus.NEEDS_REVIEW
+        : EssayScoringStatus.SCORED;
+    await this.answerRepo.save(answer);
+
+    // The answer was counted as NOT correct while pending; fold its real result in.
+    if (aiScore / maxScore >= ESSAY_PASS_RATIO) {
+      session.questionsCorrect += 1;
+      const subj = session.subjectScores?.find((e) => String(e.subject) === String(question.subject));
+      if (subj) {
+        subj.score += 1;
+        subj.percentage = subj.total ? Math.round((subj.score / subj.total) * 100) : 0;
+      }
+      const topicKey = question.topic ?? 'General';
+      const topic = session.topicBreakdown?.find((e) => e.topic === topicKey);
+      if (topic) {
+        topic.correct += 1;
+        topic.score = topic.total ? Math.round((topic.correct / topic.total) * 100) : 0;
+      }
+      session.recalculate();
+      await this.sessionRepo.save(session);
+    }
+
+    return {
+      sessionQuestionId,
+      awardedScore: answer.awardedScore,
+      maxScore: answer.maxScore,
+      scoringStatus: answer.scoringStatus,
+      session: this.presentSession(session),
     };
   }
 
@@ -784,12 +1059,22 @@ export class ExamsService {
     question: Question,
     studentAnswer: StudentAnswer,
     mode: 'practice' | 'exam',
+    opts: { onlyPath?: string; reuse?: PartScoreRow[] } = {},
   ) {
     const leaves = flattenEssayParts(question.structure);
     const answers = new Map((studentAnswer.partAnswers ?? []).map((p) => [p.path, p]));
-    const parts: NonNullable<StudentAnswer['partScores']> = [];
+    // Parts that already have a real grade are reused, never re-graded (saves AI
+    // calls and guarantees an existing grade is not overwritten by a retry).
+    const reusable = new Map(
+      (opts.reuse ?? []).filter((p) => p.status !== 'failed').map((p) => [p.path, p]),
+    );
+    const parts: PartScoreRow[] = [];
+    const failedPaths: string[] = [];
 
-    const scoreLeaf = async (leaf: (typeof leaves)[number]) => {
+    const scoreLeaf = async (leaf: (typeof leaves)[number]): Promise<PartScoreRow | null> => {
+      if (opts.onlyPath !== undefined && leaf.path !== opts.onlyPath) return null;
+      const reused = reusable.get(leaf.path);
+      if (reused) return reused;
       const given = answers.get(leaf.path);
       const text = given?.essayText?.trim() ?? '';
       const images = given?.essayImageUrls ?? [];
@@ -804,29 +1089,49 @@ export class ExamsService {
           feedback: 'No answer was provided for this part.',
           strengths: [] as string[],
           improvements: ['Attempt every part — even a partial answer can earn marks.'],
+          status: 'scored',
         };
       }
-      const result = await this.aiScoringService.scoreEssay(userId, {
-        questionId: question.id,
-        questionText:
-          `Mark ONLY sub-question ${leaf.path}, worth ${leaf.maxScore} mark(s). The full mark scheme below covers the whole question — use only the part that applies to this sub-question.\n\n` +
-          `${leaf.context ? leaf.context + '\n' : ''}${leaf.label} ${leaf.text}`.trim(),
-        studentAnswer: text,
-        modelAnswer: question.modelAnswer ?? undefined,
-        diagramImageUrls: images.length ? images : undefined,
-        maxScore: leaf.maxScore,
-        mode,
-      });
-      return {
-        path: leaf.path,
-        awardedScore: Math.min(leaf.maxScore, Math.max(0, Math.round(result.aiScore))),
-        maxScore: leaf.maxScore,
-        confidence: Number(result.confidence),
-        aiEssayScoreId: result.id,
-        feedback: result.aiFeedback,
-        strengths: result.strengths ?? [],
-        improvements: result.improvements ?? [],
-      };
+      try {
+        const result = await this.aiScoringService.scoreEssay(userId, {
+          questionId: question.id,
+          questionText:
+            `Mark ONLY sub-question ${leaf.path}, worth ${leaf.maxScore} mark(s). The full mark scheme below covers the whole question — use only the part that applies to this sub-question.\n\n` +
+            `${leaf.context ? leaf.context + '\n' : ''}${leaf.label} ${leaf.text}`.trim(),
+          studentAnswer: text,
+          modelAnswer: question.modelAnswer ?? undefined,
+          diagramImageUrls: images.length ? images : undefined,
+          maxScore: leaf.maxScore,
+          mode,
+        });
+        return {
+          path: leaf.path,
+          awardedScore: Math.min(leaf.maxScore, Math.max(0, Math.round(result.aiScore))),
+          maxScore: leaf.maxScore,
+          confidence: Number(result.confidence),
+          aiEssayScoreId: result.id,
+          feedback: result.aiFeedback,
+          strengths: result.strengths ?? [],
+          improvements: result.improvements ?? [],
+          status: 'scored',
+        };
+      } catch (err) {
+        // One failing part must not sink the others: it is recorded as "failed"
+        // (no grade invented) and can be retried on its own.
+        this.logger.warn(`Part ${leaf.path} could not be graded: ${(err as Error).message}`);
+        failedPaths.push(leaf.path);
+        return {
+          path: leaf.path,
+          awardedScore: 0,
+          maxScore: leaf.maxScore,
+          confidence: 0,
+          aiEssayScoreId: null,
+          feedback: '',
+          strengths: [],
+          improvements: [],
+          status: 'failed',
+        };
+      }
     };
 
     const CONCURRENCY = 3;
@@ -835,11 +1140,48 @@ export class ExamsService {
       for (const r of batch) if (r) parts.push(r);
     }
 
+    const graded = parts.filter((p) => p.status !== 'failed');
     return {
       parts,
-      total: parts.reduce((sum, p) => sum + p.awardedScore, 0),
+      failedPaths,
+      total: graded.reduce((sum, p) => sum + p.awardedScore, 0),
       max: parts.reduce((sum, p) => sum + p.maxScore, 0),
-      minConfidence: parts.length ? Math.min(...parts.map((p) => p.confidence)) : 1,
+      minConfidence: graded.length ? Math.min(...graded.map((p) => p.confidence)) : 1,
+    };
+  }
+
+  /** True when this is a timed Exam-mode session (practice is never timed). */
+  private isTimedExam(session: ExamSession): boolean {
+    return session.mode === ExamMode.MOCK && !!session.allowedDurationSeconds;
+  }
+
+  private isExpiredExam(session: ExamSession): boolean {
+    return this.isTimedExam(session) && isPastDeadline(session, Date.now());
+  }
+
+  /** Finalises an expired exam with whatever was saved in time. Safe to call repeatedly. */
+  private async autoSubmitExpired(userId: string, session: ExamSession): Promise<void> {
+    try {
+      await this.completeSession(userId, session.id);
+    } catch (err) {
+      // Already being submitted / already submitted by a racing request — fine.
+      this.logger.warn(`Auto-submit of expired session ${session.id}: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * Session as sent to the client: adds server time + remaining seconds so the
+   * countdown is derived from the SERVER clock and survives refreshes.
+   */
+  private presentSession(session: ExamSession) {
+    const now = Date.now();
+    return {
+      ...session,
+      serverNow: new Date(now).toISOString(),
+      remainingSeconds:
+        session.status === SessionStatus.IN_PROGRESS && this.isTimedExam(session)
+          ? remainingSeconds(session, now)
+          : null,
     };
   }
 

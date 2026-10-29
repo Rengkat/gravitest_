@@ -60,4 +60,10 @@ export type AIResult = {
   improvements: string[];
   showSolution: boolean;
   detailedFeedback?: string | null;
+  /** The stored (database) explanation for the question — shown after grading. */
+  explanation?: string;
+  /** Official mark scheme / model answer, revealed only after grading (practice) or submission (exam). */
+  modelAnswer?: string;
+  /** Low AI confidence: a human review is pending. Always an AI ESTIMATE, never teacher-verified here. */
+  needsReview?: boolean;
 };

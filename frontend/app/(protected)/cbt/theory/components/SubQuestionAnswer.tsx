@@ -1,9 +1,11 @@
 import { AIResult, Answer, AnswerType, ExamMode, SubQuestion } from "@/types/examsTypes";
 import {
+  AlertTriangle,
   BarChart2,
   Bold,
-  BookOpen,
   FileText,
+  Loader2,
+  RefreshCw,
   Italic,
   PenTool,
   Ruler,
@@ -30,6 +32,10 @@ export default function SubQuestionAnswer({
   onAIScore,
   onToggleSolution,
   onElaborated,
+  isGrading = false,
+  gradeError = null,
+  isStale = false,
+  hasAnswer = true,
 }: {
   subQuestion: SubQuestion;
   answer: Answer;
@@ -40,6 +46,14 @@ export default function SubQuestionAnswer({
   onAIScore: () => void;
   onToggleSolution: () => void;
   onElaborated: (subQuestionId: string, detailedFeedback: string) => void;
+  /** THIS part's grading request is in flight (other parts are unaffected). */
+  isGrading?: boolean;
+  /** THIS part's last grading attempt failed — the answer is kept; retry is offered. */
+  gradeError?: string | null;
+  /** The answer was edited after it was graded, so the shown grade is out of date. */
+  isStale?: boolean;
+  /** Something has been written/uploaded for this part. */
+  hasAnswer?: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<AnswerType>(answer.type);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -107,10 +121,8 @@ export default function SubQuestionAnswer({
     { id: "upload", label: "Upload", icon: <Upload size={13} /> },
   ];
 
-  // In exam mode post-submit: show solution directly without scoring button
-  const showDirectSolution = mode === "exam" && isSubmitted && subQuestion.modelAnswer;
-  // Practice mode: let the student reveal the answer/AI score as soon as they've
-  // written something — they don't have to submit the whole paper first.
+  // Practice mode only: the student can check THIS part as soon as they've answered it —
+  // they don't have to submit the whole paper. Exam mode never renders any of this.
   const canRevealInPractice = mode === "practice" && !isSubmitted;
 
   return (
@@ -331,21 +343,54 @@ export default function SubQuestionAnswer({
         </div>
       )}
 
-      {/* ── PRACTICE MODE: reveal immediately, no need to submit the whole paper ── */}
+      {/* ── PRACTICE MODE: check THIS part on its own ── */}
       {canRevealInPractice && (
-        <div className="mt-4">
-          {!aiResult && (
-            <button
-              onClick={onAIScore}
-              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-800 to-green-700 text-white rounded-xl text-sm font-bold hover:from-green-700 hover:to-green-600 transition-all shadow-sm">
-              <Sparkles size={15} />
-              Reveal Answer &amp; Score with AI
-            </button>
+        <div className="mt-4" aria-live="polite">
+          {(!aiResult || isStale) && (
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={onAIScore}
+                disabled={isGrading || !hasAnswer}
+                aria-label={`${aiResult ? "Check answer again" : "Check answer"} for ${subQuestion.label}`}
+                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-800 to-green-700 text-white rounded-xl text-sm font-bold hover:from-green-700 hover:to-green-600 transition-all shadow-sm disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700">
+                {isGrading ? (
+                  <Loader2 size={15} className="animate-spin" aria-hidden="true" />
+                ) : (
+                  <Sparkles size={15} aria-hidden="true" />
+                )}
+                {isGrading ? "Checking your answer…" : aiResult ? "Check Answer again" : "Check Answer"}
+              </button>
+              {!hasAnswer && (
+                <span className="text-xs text-gray-600">Write or upload an answer for this part first.</span>
+              )}
+            </div>
           )}
+
+          {isStale && aiResult && (
+            <p className="mt-2 text-xs font-semibold text-amber-800">
+              You changed this answer after it was checked — the feedback below is for your earlier version.
+            </p>
+          )}
+
+          {gradeError && !isGrading && (
+            <div role="alert" className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-3">
+              <AlertTriangle size={16} className="shrink-0 text-red-600" aria-hidden="true" />
+              <p className="flex-1 text-[13px] text-red-800">{gradeError} Your answer is still here.</p>
+              <button
+                type="button"
+                onClick={onAIScore}
+                className="flex items-center gap-1.5 rounded-lg bg-green-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-green-700">
+                <RefreshCw size={13} aria-hidden="true" /> Try again
+              </button>
+            </div>
+          )}
+
           {aiResult && (
             <AIResultPanel
               result={aiResult}
               modelAnswer={subQuestion.modelAnswer}
+              questionText={`${subQuestion.label} ${subQuestion.text}`}
               onToggleSolution={onToggleSolution}
               onElaborated={(detail) => onElaborated(subQuestion.id, detail)}
               mode={mode}
@@ -354,42 +399,17 @@ export default function SubQuestionAnswer({
         </div>
       )}
 
-      {/* ── POST-SUBMIT ACTIONS ── */}
-      {isSubmitted && (
+      {/* ── After submission: read-only view of any result already attached ── */}
+      {isSubmitted && aiResult && (
         <div className="mt-4">
-          {/* Practice mode: AI Score button (only if not already revealed pre-submit) */}
-          {mode === "practice" && !aiResult && (
-            <button
-              onClick={onAIScore}
-              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-800 to-green-700 text-white rounded-xl text-sm font-bold hover:from-green-700 hover:to-green-600 transition-all shadow-sm">
-              <Sparkles size={15} />
-              Score with AI &amp; See Solution
-            </button>
-          )}
-
-          {/* Exam mode: show solution directly */}
-          {showDirectSolution && !aiResult && (
-            <div className="mt-2 p-4 bg-green-50 rounded-xl border border-green-200">
-              <p className="text-[11px] font-bold text-green-800 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                <BookOpen size={12} />
-                Model Answer
-              </p>
-              <pre className="text-xs text-gray-700 whitespace-pre-wrap font-sans leading-relaxed">
-                {subQuestion.modelAnswer}
-              </pre>
-            </div>
-          )}
-
-          {/* AI result panel (e.g. exam-mode scores computed at submit time) */}
-          {aiResult && (
-            <AIResultPanel
-              result={aiResult}
-              modelAnswer={subQuestion.modelAnswer}
-              onToggleSolution={onToggleSolution}
-              onElaborated={(detail) => onElaborated(subQuestion.id, detail)}
-              mode={mode}
-            />
-          )}
+          <AIResultPanel
+            result={aiResult}
+            modelAnswer={subQuestion.modelAnswer}
+            questionText={`${subQuestion.label} ${subQuestion.text}`}
+            onToggleSolution={onToggleSolution}
+            onElaborated={(detail) => onElaborated(subQuestion.id, detail)}
+            mode={mode}
+          />
         </div>
       )}
     </div>

@@ -1,24 +1,31 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Clock, LogOut, Calculator, AlertCircle, CheckCircle, Loader2 } from "lucide-react";
+import { Clock, LogOut, Calculator, AlertCircle, CheckCircle, CheckCircle2, Circle, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import SubmitModel from "../../../components/SubmitModel";
 import TimeUpModal from "../../../components/TimeUpModal";
 import Instructions from "./Instructions";
 import { AIResult, Answer, AnswerType, ExamMode, SubQuestion } from "@/types/examsTypes";
 import { formatTime } from "@/utils/formartTimer";
+import { ExamLoader } from "@/lib/loaders";
+import SessionProblem from "../../components/SessionProblem";
+import { useExamCountdown } from "@/lib/session/useExamCountdown";
+import { buildExamSummary, validateSessionForPlay } from "@/lib/session/examSummary";
 import SubQuestionAnswer from "./SubQuestionAnswer";
 import CalculatorModal from "../../../components/CalculatorModal";
 import PassagePanel from "../../../components/PassagePanel";
 import Image from "next/image";
 import {
   getPracticeSession,
+  syncPracticeSession,
   completePart,
   resultsRoute,
   type EssayAnswerSubmission,
+  type PracticeSession,
+  type SessionMode,
 } from "@/lib/session/practiceSession";
 import { scoreAnswerNow, submitAnswer } from "@/lib/api/exams";
 import { groupTheoryQuestions } from "@/lib/theory/groupTheoryQuestions";
@@ -31,7 +38,26 @@ import { extractErrorMessage } from "@/lib/api/client";
 export default function CBTEssayClientPage({ id }: { id: string }) {
   const router = useRouter();
   const sessionId = id as string;
-  const session = getPracticeSession(sessionId);
+  // Cached copy first (instant), then re-synced with the SERVER so the exam clock and the
+  // student's saved text survive a refresh.
+  const [session, setSession] = useState<PracticeSession | null>(() => getPracticeSession(sessionId));
+  const [deadlineMs, setDeadlineMs] = useState<number | null>(null);
+  const [synced, setSynced] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    syncPracticeSession(sessionId).then(({ session: fresh, deadlineMs: d }) => {
+      if (cancelled) return;
+      if (fresh) setSession(fresh);
+      setDeadlineMs(d);
+      setSynced(true);
+      // Already submitted / auto-submitted on the server → never re-enter the exam.
+      if (fresh && fresh.backendSession.status !== "in_progress") router.replace(resultsRoute(sessionId));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, router]);
 
   // Real theory questions for this session, grouped back into the
   // Question/SubQuestion shape the UI below was built against.
@@ -44,18 +70,23 @@ export default function CBTEssayClientPage({ id }: { id: string }) {
   }, [session]);
 
   const [examStarted, setExamStarted] = useState(false);
-  const [mode, setMode] = useState<ExamMode>(session?.mode ?? "practice");
-  const [timeRemaining, setTimeRemaining] = useState((session?.config.timeLimit ?? 120) * 60);
+  // The mode is fixed when the session is created; there is no way to switch it mid-session.
+  const mode: ExamMode = (session?.mode ?? "practice") satisfies SessionMode;
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [showCalculator, setShowCalculator] = useState(false);
   const [showTimeUpModal, setShowTimeUpModal] = useState(false);
   const [answers, setAnswers] = useState<Answer[]>([]);
   const [aiResults, setAiResults] = useState<Record<string, AIResult>>({});
-  const [aiLoading, setAiLoading] = useState<Record<string, boolean>>({});
+  // Per-part (sub-question) grading state, keyed by the stable sub.id — never an array index.
+  const [gradingIds, setGradingIds] = useState<ReadonlySet<string>>(new Set());
+  const [gradeErrors, setGradeErrors] = useState<Record<string, string>>({});
+  // What each part's answer looked like when it was graded, to flag an out-of-date grade.
+  const [gradedFingerprints, setGradedFingerprints] = useState<Record<string, string>>({});
   const [isFinalizing, setIsFinalizing] = useState(false);
 
   const isSubmittedRef = useRef(false);
+  const gradingRef = useRef<Set<string>>(new Set()); // synchronous guard: repeated clicks never double-send
 
   function buildInitialAnswers(): Answer[] {
     return essayQuestions.flatMap((q) =>
@@ -71,25 +102,26 @@ export default function CBTEssayClientPage({ id }: { id: string }) {
     );
   }
 
-  // Timer — only runs after exam starts and before submission
+  // Restore what the student already typed (server-held) after a refresh.
+  const hydratedRef = useRef(false);
   useEffect(() => {
-    if (!examStarted || isSubmitted) return;
-    const timer = setInterval(() => {
-      setTimeRemaining((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          if (!isSubmittedRef.current) {
-            isSubmittedRef.current = true;
-            setIsSubmitted(true);
-            setShowTimeUpModal(true);
-          }
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [examStarted, isSubmitted]);
+    if (!synced || hydratedRef.current || !session) return;
+    hydratedRef.current = true;
+    const savedBySq = new Map(session.questions.map((q) => [q.sessionQuestionId, q.savedAnswer]));
+    setAnswers(
+      buildInitialAnswers().map((a) => {
+        const sub = essayQuestions.flatMap((q) => q.subQuestions).find((x) => x.id === a.subQuestionId);
+        const saved = sub ? savedBySq.get(sub.sessionQuestionId) : undefined;
+        if (!sub || !saved) return a;
+        const text =
+          sub.path === ""
+            ? (saved.essayText ?? "")
+            : (saved.partAnswers?.find((p) => p.path === sub.path)?.essayText ?? "");
+        return text ? { ...a, content: text } : a;
+      }),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [synced, session]);
 
   const getAnswer = (subId: string): Answer =>
     answers.find((a) => a.subQuestionId === subId) ?? {
@@ -164,64 +196,89 @@ export default function CBTEssayClientPage({ id }: { id: string }) {
     return { sessionQuestionId, essayText: "", partAnswers };
   };
 
+  /** Cheap fingerprint of an answer, to tell whether it changed after being graded. */
+  const fingerprint = (a: Answer) =>
+    JSON.stringify([
+      a.content,
+      a.whiteboardData?.length ?? 0,
+      a.graphData?.length ?? 0,
+      a.constructionData?.length ?? 0,
+      a.uploadData?.name ?? "",
+      a.uploadData?.data.length ?? 0,
+    ]);
+
   /**
-   * "Reveal Answer & Score with AI" on ANY part scores the whole question
-   * it belongs to: the backend stores one answer row per question, so every
-   * part is submitted together, then each part is scored independently
-   * against its own marks. Practice mode only (backend enforces this).
+   * Practice mode "Check Answer": grades EXACTLY ONE part. Only that part's answer is submitted
+   * and only that part is scored, so the other parts of the same question keep their own answer,
+   * grade, feedback and loading state. (The backend enforces practice-only.)
    */
-  const handleAIScore = async (subQuestion: SubQuestion) => {
-    const group =
-      essayQuestions.find((q) => q.subQuestions.some((s) => s.id === subQuestion.id))?.subQuestions ??
-      [subQuestion];
-    setAiLoading((prev) => ({ ...prev, ...Object.fromEntries(group.map((s) => [s.id, true])) }));
+  const handleCheckPart = async (sub: SubQuestion) => {
+    if (mode !== "practice" || isSubmittedRef.current) return;
+    if (gradingRef.current.has(sub.id)) return; // already in flight
+    const answer = getAnswer(sub.id);
+    if (!isAnswered(answer)) {
+      toast.error(`Write or upload an answer for ${sub.label} first.`);
+      return;
+    }
+    gradingRef.current.add(sub.id);
+    setGradingIds(new Set(gradingRef.current));
+    setGradeErrors((prev) => {
+      const { [sub.id]: _drop, ...rest } = prev;
+      void _drop;
+      return rest;
+    });
     try {
-      const submission = await buildSubmission(group, { includeBlank: true });
+      const submission = await buildSubmission([sub], { includeBlank: false });
       if (!submission) return;
       await submitAnswer(sessionId, submission);
 
-      const score = await scoreAnswerNow(sessionId, subQuestion.sessionQuestionId);
-      setAiResults((prev) => {
-        const next = { ...prev };
-        if (score.parts?.length) {
-          for (const sub of group) {
-            const part = score.parts.find((p) => p.path === sub.path);
-            if (!part) continue;
-            next[sub.id] = {
-              id: part.aiEssayScoreId ?? undefined,
-              score: part.awardedScore,
-              maxScore: part.maxScore,
-              feedback: part.feedback,
-              strengths: part.strengths,
-              improvements: part.improvements,
-              showSolution: false,
-            };
-          }
-        } else if (score.id) {
-          next[group[0].id] = {
-            id: score.id,
-            score: score.aiScore,
-            maxScore: score.maxScore,
-            feedback: score.aiFeedback,
-            strengths: score.strengths,
-            improvements: score.improvements,
-            showSolution: false,
-          };
-        }
-        return next;
-      });
+      const score = await scoreAnswerNow(sessionId, sub.sessionQuestionId, sub.path || undefined);
+      let result: AIResult;
+      if (score.parts?.length) {
+        const part = score.parts.find((p) => p.path === sub.path);
+        if (!part || part.status === "failed") throw new Error("This part could not be graded right now.");
+        result = {
+          id: part.aiEssayScoreId ?? undefined,
+          score: part.awardedScore,
+          maxScore: part.maxScore,
+          feedback: part.feedback,
+          strengths: part.strengths,
+          improvements: part.improvements,
+          showSolution: false,
+          explanation: score.explanation,
+          modelAnswer: score.modelAnswer,
+          needsReview: score.needsReview,
+        };
+      } else {
+        result = {
+          id: score.id ?? undefined,
+          score: score.aiScore,
+          maxScore: score.maxScore,
+          feedback: score.aiFeedback,
+          strengths: score.strengths,
+          improvements: score.improvements,
+          showSolution: false,
+          explanation: score.explanation,
+          modelAnswer: score.modelAnswer,
+          needsReview: score.needsReview,
+        };
+      }
+      // Writes ONLY this part's entry.
+      setAiResults((prev) => ({ ...prev, [sub.id]: result }));
+      setGradedFingerprints((prev) => ({ ...prev, [sub.id]: fingerprint(answer) }));
     } catch (err) {
-      toast.error(extractErrorMessage(err));
+      // The answer stays exactly as typed; the student can retry this part without losing anything.
+      setGradeErrors((prev) => ({ ...prev, [sub.id]: extractErrorMessage(err) }));
     } finally {
-      setAiLoading((prev) => ({ ...prev, ...Object.fromEntries(group.map((s) => [s.id, false])) }));
+      gradingRef.current.delete(sub.id);
+      setGradingIds(new Set(gradingRef.current));
     }
   };
 
   const handleToggleSolution = (subId: string) => {
-    setAiResults((prev) => ({
-      ...prev,
-      [subId]: { ...prev[subId], showSolution: !prev[subId].showSolution },
-    }));
+    setAiResults((prev) =>
+      prev[subId] ? { ...prev, [subId]: { ...prev[subId], showSolution: !prev[subId].showSolution } } : prev,
+    );
   };
 
   /**
@@ -242,35 +299,107 @@ export default function CBTEssayClientPage({ id }: { id: string }) {
     try {
       const submissions: EssayAnswerSubmission[] = [];
       for (const question of essayQuestions) {
-        const submission = await buildSubmission(question.subQuestions, { includeBlank: false });
+        // Practice: parts already checked (and not edited since) are left alone, so they keep
+        // their grade and are not re-uploaded or re-graded.
+        const pending = question.subQuestions.filter(
+          (sub) => !(aiResults[sub.id] && gradedFingerprints[sub.id] === fingerprint(getAnswer(sub.id))),
+        );
+        if (!pending.length) continue;
+        const submission = await buildSubmission(pending, { includeBlank: false });
         if (submission) submissions.push(submission);
       }
 
       await completePart(sessionId, "theory", submissions);
       router.push(resultsRoute(sessionId));
     } catch (err) {
+      const code = (err as { response?: { data?: { code?: string } } })?.response?.data?.code;
+      if (code === "time_expired") {
+        // The server already closed and auto-submitted the exam with what was saved in time.
+        router.push(resultsRoute(sessionId));
+        return;
+      }
       toast.error(extractErrorMessage(err));
+      isSubmittedRef.current = false;
+      setIsSubmitted(false);
       setIsFinalizing(false);
     }
   };
 
+  // Always call the latest finishTheoryPart (timer callbacks must not hold a stale closure).
+  const finishRef = useRef(finishTheoryPart);
+  finishRef.current = finishTheoryPart;
+
+  // Exam timer: derived from the SERVER's remaining time; fires once; Practice has none.
+  const handleExpire = useCallback(() => {
+    if (isSubmittedRef.current) return;
+    isSubmittedRef.current = true;
+    setIsSubmitted(true);
+    setShowTimeUpModal(true);
+    void finishRef.current();
+  }, []);
+  const timeRemaining = useExamCountdown(
+    mode === "exam" ? deadlineMs : null,
+    synced && examStarted && !isSubmitted,
+    handleExpire,
+  );
+
+  // Exam mode: keep typed text safe on the server while the student works (so a refresh loses
+  // nothing). Text only; diagrams/uploads are sent at submission. No feedback comes back.
+  const savedTextRef = useRef<Record<string, string>>({});
+  useEffect(() => {
+    if (mode !== "exam" || !examStarted || isSubmitted) return;
+    const t = setTimeout(async () => {
+      for (const question of essayQuestions) {
+        const changed = question.subQuestions.filter((sub) => {
+          const text = getAnswer(sub.id).content;
+          return text.trim() !== "" && savedTextRef.current[sub.id] !== text;
+        });
+        if (!changed.length) continue;
+        const sessionQuestionId = changed[0].sessionQuestionId;
+        const plain = changed.length === 1 && changed[0].path === "";
+        try {
+          await submitAnswer(
+            sessionId,
+            plain
+              ? { sessionQuestionId, essayText: getAnswer(changed[0].id).content }
+              : {
+                  sessionQuestionId,
+                  essayText: "",
+                  partAnswers: changed.map((sub) => ({ path: sub.path, essayText: getAnswer(sub.id).content })),
+                },
+          );
+          for (const sub of changed) savedTextRef.current[sub.id] = getAnswer(sub.id).content;
+        } catch {
+          // Best-effort: the final submission re-sends everything.
+        }
+      }
+    }, 2000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [answers, mode, examStarted, isSubmitted]);
+
   const confirmSubmit = () => {
+    if (isSubmittedRef.current) return; // no duplicate submissions
+    isSubmittedRef.current = true;
     setIsSubmitted(true);
     setShowSubmitModal(false);
     finishTheoryPart();
   };
 
-  const isLowTime = timeRemaining < 300;
+  const isLowTime = timeRemaining !== null && timeRemaining < 300;
+
+  // An unloadable / invalid configuration is reported explicitly — never papered over with defaults.
+  const problem = validateSessionForPlay(session, "theory");
+  if (problem && !isFinalizing && !isSubmitted) return <SessionProblem message={problem} />;
+  if (!session || !synced) return <ExamLoader />;
 
   // Show instructions screen until the student starts
   if (!examStarted)
     return (
       <Instructions
-        mode={mode}
-        modeLocked={!!session}
-        onStart={(m) => {
-          setMode(m);
-          setAnswers(buildInitialAnswers());
+        summary={buildExamSummary(session, "theory", essayQuestions.length)}
+        onStart={() => {
+          setAnswers((prev) => (prev.length ? prev : buildInitialAnswers()));
           setExamStarted(true);
         }}
       />
@@ -313,15 +442,23 @@ export default function CBTEssayClientPage({ id }: { id: string }) {
               }`}>
               {mode === "practice" ? "PRACTICE" : "EXAM"}
             </span>
-            <div
-              className={`px-4 py-1.5 rounded-lg font-mono font-bold text-[15px] flex items-center gap-2 transition-colors ${
-                isLowTime ? "bg-red-500 text-white" : "bg-yellow-400 text-green-900"
-              }`}
-              aria-live="polite"
-              aria-label={`Time remaining: ${formatTime(timeRemaining)}`}>
-              <Clock size={16} aria-hidden="true" />
-              <span>{formatTime(timeRemaining)}</span>
-            </div>
+            {timeRemaining === null ? (
+              <div className="px-4 py-1.5 rounded-lg bg-white/15 text-white font-semibold text-[13px]" data-testid="untimed-badge">
+                Practice · Untimed
+              </div>
+            ) : (
+              <div
+                role="timer"
+                aria-live="off"
+                className={`px-4 py-1.5 rounded-lg font-mono font-bold text-[15px] flex items-center gap-2 transition-colors ${
+                  isLowTime ? "bg-red-500 text-white" : "bg-yellow-400 text-green-900"
+                }`}
+                aria-label={`Time remaining: ${formatTime(timeRemaining)}`}>
+                <Clock size={16} aria-hidden="true" />
+                <span>{formatTime(timeRemaining)}</span>
+                {isLowTime && <span className="sr-only">Time is running low</span>}
+              </div>
+            )}
           </div>
         </div>
       </nav>
@@ -338,7 +475,7 @@ export default function CBTEssayClientPage({ id }: { id: string }) {
           <button
             onClick={() => setShowSubmitModal(true)}
             className="bg-green-800 text-white px-6 py-2 rounded-lg text-[13px] font-bold hover:bg-green-700 transition-all">
-            Submit
+            {mode === "practice" ? "Finish" : "Submit"}
           </button>
         ) : (
           <div className="flex items-center gap-2 text-green-700 font-semibold text-sm">
@@ -362,10 +499,28 @@ export default function CBTEssayClientPage({ id }: { id: string }) {
             key={question.id}
             className="bg-white rounded-xl border overflow-hidden"
             style={{ borderColor: "rgba(30,80,50,0.1)" }}>
-            <div className="border-b p-5 bg-gradient-to-r from-green-50 to-white">
-              <div className="flex items-center gap-3">
-                <CheckCircle size={20} className="text-green-600" aria-hidden="true" />
-                <span className="text-[15px] font-bold text-green-800">{question.title}</span>
+            <div className="border-b border-green-200 p-5 bg-green-50">
+              <div className="flex flex-wrap items-center gap-3">
+                <span
+                  className="inline-flex h-10 min-w-10 items-center justify-center rounded-full bg-green-800 px-2 text-base font-extrabold text-white ring-2 ring-green-900/20"
+                  aria-hidden="true">
+                  {question.title.match(/\d+/)?.[0] ?? "•"}
+                </span>
+                <h2 className="text-lg font-extrabold text-green-900">{question.title}</h2>
+                {(() => {
+                  const total = question.subQuestions.length;
+                  const done = question.subQuestions.filter((sub) => isAnswered(getAnswer(sub.id))).length;
+                  const all = done === total && total > 0;
+                  return (
+                    <span
+                      className={`ml-auto inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold ${
+                        all ? "border-green-700 bg-green-100 text-green-900" : "border-gray-400 bg-white text-gray-800"
+                      }`}>
+                      {all ? <CheckCircle2 size={14} aria-hidden="true" /> : <Circle size={14} aria-hidden="true" />}
+                      {done} of {total} {total === 1 ? "part" : "parts"} answered
+                    </span>
+                  );
+                })()}
               </div>
               {question.imageUrl && (
                 <div className="mt-3">
@@ -399,14 +554,14 @@ export default function CBTEssayClientPage({ id }: { id: string }) {
                   {headingsToShow.map((h, hIdx) => (
                     <div
                       key={`${sub.id}-h-${hIdx}`}
-                      className="flex items-start gap-2 mb-3 bg-green-50/60 border border-green-100 rounded-lg px-3 py-2"
+                      className="flex items-start gap-2 mb-3 bg-green-50 border border-green-300 rounded-lg px-3 py-2"
                       style={{ marginLeft: (firstChangedDepth + hIdx) * 12 }}>
-                      <span className="font-bold text-green-900 text-sm shrink-0">{h.label}</span>
-                      {h.text && <span className="text-sm text-green-900/80 leading-relaxed">{h.text}</span>}
+                      <span className="font-extrabold text-green-900 text-base shrink-0">{h.label}</span>
+                      {h.text && <span className="text-sm text-green-900 leading-relaxed">{h.text}</span>}
                     </div>
                   ))}
                   <div className="flex items-start gap-2 mb-1 flex-wrap">
-                    <span className="font-bold text-green-800 text-base shrink-0">{sub.label}</span>
+                    <span className="font-extrabold text-green-900 text-lg shrink-0">{sub.label}</span>
                     <span className="text-sm text-gray-700 leading-relaxed flex-1">{sub.text}</span>
                     {sub.marks && (
                       <span className="text-xs text-green-700 font-semibold shrink-0 bg-green-50 px-2 py-0.5 rounded-full border border-green-200">
@@ -425,12 +580,6 @@ export default function CBTEssayClientPage({ id }: { id: string }) {
                       />
                     </div>
                   )}
-                  {aiLoading[sub.id] && (
-                    <div className="mt-3 flex items-center gap-2 text-green-700 text-sm">
-                      <Loader2 size={16} className="animate-spin" />
-                      <span>AI is scoring your answer…</span>
-                    </div>
-                  )}
                   <SubQuestionAnswer
                     subQuestion={sub}
                     answer={getAnswer(sub.id)}
@@ -438,7 +587,13 @@ export default function CBTEssayClientPage({ id }: { id: string }) {
                     mode={mode}
                     isSubmitted={isSubmitted}
                     aiResult={aiResults[sub.id]}
-                    onAIScore={() => handleAIScore(sub)}
+                    onAIScore={() => handleCheckPart(sub)}
+                    isGrading={gradingIds.has(sub.id)}
+                    gradeError={gradeErrors[sub.id] ?? null}
+                    hasAnswer={isAnswered(getAnswer(sub.id))}
+                    isStale={
+                      !!aiResults[sub.id] && gradedFingerprints[sub.id] !== fingerprint(getAnswer(sub.id))
+                    }
                     onToggleSolution={() => handleToggleSolution(sub.id)}
                     onElaborated={(subQuestionId, detailedFeedback) =>
                       setAiResults((prev) => ({
@@ -478,6 +633,7 @@ export default function CBTEssayClientPage({ id }: { id: string }) {
           isAnswered={isAnswered}
           setShowTimeUpModal={setShowTimeUpModal}
           sessionId={sessionId}
+          isSubmitting={isFinalizing}
         />
       )}
     </div>

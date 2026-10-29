@@ -45,6 +45,16 @@ export interface PartScore {
   feedback: string;
   strengths: string[];
   improvements: string[];
+  // 'failed' = the AI call for this part errored: no grade was invented, retry is available.
+  status?: "scored" | "failed";
+}
+
+/** The student's own saved input (never includes correctness/scores) — restores work after a refresh. */
+export interface SavedAnswerDto {
+  selectedLabel: string | null;
+  essayText: string | null;
+  essayImageUrls: string[];
+  partAnswers: { path: string; essayText: string; essayImageUrls: string[] }[] | null;
 }
 
 export interface SessionQuestionDto {
@@ -65,6 +75,7 @@ export interface SessionQuestionDto {
   passage?: SessionQuestionPassage | null;
   isAnswered?: boolean;
   isFlagged?: boolean;
+  savedAnswer?: SavedAnswerDto;
 }
 
 export interface ExamSessionDto {
@@ -91,6 +102,10 @@ export interface ExamSessionDto {
   xpEarned: number;
   topicBreakdown: { topic: string; total: number; correct: number; score: number }[] | null;
   subjectScores: { subject: string; score: number; total: number; percentage: number }[] | null;
+  // Added by the server on every session response: the countdown is derived from the
+  // SERVER clock (serverNow / remainingSeconds), so a refresh can never reset it.
+  serverNow?: string;
+  remainingSeconds?: number | null;
 }
 
 export interface StartExamSessionPayload {
@@ -170,6 +185,8 @@ export interface ResultsBreakdownItem {
     options?: SessionQuestionOption[];
     correctLabel?: string;
     explanations?: { text: string }[];
+    /** Official mark scheme — only present here because results are only served after submission. */
+    modelAnswer?: string | null;
     maxScore?: number | null;
     structure?: EssayPart[] | null;
   };
@@ -197,21 +214,48 @@ export async function getExamResults(sessionId: string) {
   return data;
 }
 
-export async function scoreAnswerNow(sessionId: string, sessionQuestionId: string) {
-  const { data } = await apiClient.post<{
-    // null for structured questions (no single AiEssayScore row — see parts)
-    id: string | null;
-    // Structured questions: per-part results. aiScore/maxScore are the sums.
-    parts?: PartScore[];
-    aiScore: number;
-    maxScore: number;
-    aiFeedback: string;
-    strengths: string[];
-    improvements: string[];
-    confidence: number;
-  }>(`/exams/sessions/${sessionId}/answers/${sessionQuestionId}/score`, {});
+export interface ScoreAnswerNowResult {
+  // null for structured questions (no single AiEssayScore row — see parts)
+  id: string | null;
+  // Structured questions: per-part results (just the requested part when `path` is given).
+  parts?: PartScore[];
+  aiScore: number;
+  maxScore: number;
+  aiFeedback: string;
+  strengths: string[];
+  improvements: string[];
+  confidence: number;
+  /** Official reference shown only after grading: mark scheme + stored explanation. */
+  modelAnswer?: string;
+  explanation?: string;
+  /** Always an automated estimate — never a teacher-verified grade. */
+  gradedBy?: "ai";
+  needsReview?: boolean;
+}
+
+/**
+ * Grades one question — or, with `path`, exactly ONE part of a structured
+ * question, leaving the other parts untouched. Practice mode only.
+ */
+export async function scoreAnswerNow(sessionId: string, sessionQuestionId: string, path?: string) {
+  const { data } = await apiClient.post<ScoreAnswerNowResult>(
+    `/exams/sessions/${sessionId}/answers/${sessionQuestionId}/score`,
+    path === undefined ? {} : { path },
+  );
   return data;
 }
+
+/** Retry grading for an answer left ungraded at submission (AI failure). */
+export async function regradeAnswer(sessionId: string, sessionQuestionId: string) {
+  const { data } = await apiClient.post<{
+    sessionQuestionId: string;
+    awardedScore: number | null;
+    maxScore: number | null;
+    scoringStatus: "pending" | "scored" | "needs_review";
+  }>(`/exams/sessions/${sessionId}/answers/${sessionQuestionId}/regrade`, {});
+  return data;
+}
+
 
 export async function listMyExamSessions() {
   const { data } = await apiClient.get<ExamSessionDto[]>("/exams/sessions");

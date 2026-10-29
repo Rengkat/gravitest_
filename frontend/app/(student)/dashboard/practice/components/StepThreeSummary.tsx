@@ -14,7 +14,7 @@ import {
 import { PracticeConfig, CANDIDATE_TYPE_EXAMS } from "@/types/practice";
 import { CANDIDATE_TYPE_OPTIONS } from "@/lib/constants/practice";
 import { CbtPart, SessionMode } from "@/lib/session/practiceSession";
-import { DEFAULT_TIME } from "../constants";
+import { resolveSessionSettings } from "@/lib/session/sessionSettings";
 
 interface ExamMeta {
   name: string;
@@ -75,7 +75,15 @@ export default function StepThreeSummary({
           ? `${config.numQuestions || 40} MCQ + ${config.numTheoryQuestions || 5} theory`
           : `${config.numQuestions || 40} questions`,
     },
-    { icon: Clock, label: "Time", value: `${config.timeLimit || DEFAULT_TIME} minutes` },
+    {
+      icon: Clock,
+      label: "Time",
+      // Same resolver the session is created with — what you see here is what the exam timer uses.
+      value:
+        sessionMode === "practice"
+          ? "Untimed"
+          : `${resolveSessionSettings(config, "exam").durationMinutes} minutes`,
+    },
     { icon: Timer, label: "Mode", value: sessionMode === "practice" ? "Practice" : "Exam" },
     ...(config.year ? [{ icon: CalendarDays, label: "Year", value: config.year }] : []),
     ...(selectedTopics.length > 0

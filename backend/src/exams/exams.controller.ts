@@ -9,6 +9,7 @@ import {
   SubmitAnswerDto,
   FlagQuestionDto,
   AvailableCountQueryDto,
+  ScoreAnswerDto,
 } from './dto/exam-session.dto';
 
 @ApiTags('Exams (CBT)')
@@ -93,8 +94,26 @@ export class ExamsController {
     @UserId() userId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Param('sessionQuestionId', ParseUUIDPipe) sessionQuestionId: string,
+    @Body() dto: ScoreAnswerDto,
   ) {
-    return this.examsService.scoreAnswerNow(userId, id, sessionQuestionId);
+    return this.examsService.scoreAnswerNow(userId, id, sessionQuestionId, dto?.path);
+  }
+
+  @Post('sessions/:id/answers/:sessionQuestionId/regrade')
+  @ApiOperation({
+    summary: 'Retry grading an answer that could not be graded at submission',
+    description:
+      'Only for a SUBMITTED/timed-out session whose essay answer is still pending (the AI call failed). ' +
+      'Grades just the missing/failed parts, then updates the session totals. Never overwrites a part that was already graded.',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'Exam session ID' })
+  @ApiParam({ name: 'sessionQuestionId', type: String })
+  regradeAnswer(
+    @UserId() userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('sessionQuestionId', ParseUUIDPipe) sessionQuestionId: string,
+  ) {
+    return this.examsService.regradeAnswer(userId, id, sessionQuestionId);
   }
 
   @Post('sessions/:id/complete')

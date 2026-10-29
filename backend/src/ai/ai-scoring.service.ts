@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -80,6 +85,10 @@ export class AiScoringService {
     const userContent = this.buildUserContent(dto, passageText);
     const hasDiagrams = !!dto.diagramImageUrls?.length;
 
+    // A failed AI call must NEVER be stored as a real grade. Previously a provider
+    // error (or unparseable reply) was saved as a 0/max row with confidence 0 —
+    // the student silently received a fabricated zero. Now it surfaces as a 503
+    // the caller can show ("could not be graded") and retry; nothing is persisted.
     let parsed: ParsedScoringResult;
     try {
       const result = await this.router.complete({
@@ -94,15 +103,11 @@ export class AiScoringService {
       parsed = this.parseResponse(result.text, dto);
     } catch (err) {
       this.logger.error(`Essay scoring failed: ${(err as Error).message}`);
-      parsed = {
-        score: 0,
-        feedback:
-          'Could not connect to the AI scoring service. Please try again.',
-        strengths: [],
-        improvements: [],
-        confidence: 0,
-        criteria: [],
-      };
+      throw new ServiceUnavailableException({
+        code: 'ai_grading_unavailable',
+        message:
+          'This answer could not be graded right now. Your answer is saved — please try again.',
+      });
     }
 
     const score = this.essayScoreRepository.create({
@@ -278,15 +283,8 @@ export class AiScoringService {
       this.logger.error(
         `Failed to parse AI scoring response as JSON: ${(err as Error).message}`,
       );
-      return {
-        score: 0,
-        feedback:
-          'The AI response could not be parsed. This attempt has been logged for review — please try scoring again.',
-        strengths: [],
-        improvements: [],
-        confidence: 0,
-        criteria: [],
-      };
+      // Surface as a failure (caught by scoreEssay) instead of inventing a 0.
+      throw new Error('AI scoring response could not be parsed.');
     }
   }
 
@@ -323,18 +321,27 @@ export class AiScoringService {
     // re-fetched here since AiEssayScore doesn't persist passage text
     // itself, only the question text.
     let passageText: string | null = null;
+    let officialExplanation: string | null = null;
     if (score.questionId) {
       try {
         const question = await this.questionsService.findOne(score.questionId);
         passageText = question?.passage?.passageText ?? null;
+        officialExplanation = question?.explanations?.[0]?.text ?? null;
       } catch {
         // No passage context available — elaboration still works fine.
       }
     }
 
     const basePrompt = await this.promptService.getActivePrompt(score.feature);
+    const styleInstruction =
+      'Cover (1) what they did correctly, (2) what is missing or wrong and why it matters, (3) how to ' +
+      'improve, and (4) what a stronger answer would contain.';
     const systemPrompt = [
       basePrompt,
+      'The mark scheme / official explanation supplied is authoritative: never contradict it or invent ' +
+        'facts it does not support. This is an automated AI estimate, not a teacher-verified grade — do not ' +
+        'claim otherwise. Format the reply in Markdown; put maths in \\( \\) or \\[ \\] LaTeX.',
+      styleInstruction,
       'The student has already received a score and a short summary. They now want a MUCH more ' +
         'detailed breakdown. Quote specific phrases from their actual answer (in quotation marks) ' +
         'when pointing out a strength or weakness — never speak only in generalities. For each point ' +
@@ -352,6 +359,7 @@ export class AiScoringService {
       score.modelAnswer
         ? `Mark Scheme / Model Answer:\n${score.modelAnswer}`
         : '',
+      officialExplanation ? `Official explanation on file:\n${officialExplanation}` : '',
       `They scored ${score.aiScore}/${score.maxScore}. Original short feedback given: "${score.aiFeedback}"`,
       score.scoringCriteria?.length
         ? `Per-criterion breakdown:\n${score.scoringCriteria
