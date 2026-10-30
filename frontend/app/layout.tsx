@@ -3,6 +3,7 @@ import "@fontsource-variable/sora";
 import "@fontsource/dm-serif-display/400.css";
 import "@fontsource/dm-serif-display/400-italic.css";
 import "@fontsource-variable/jetbrains-mono";
+import Script from "next/script";
 import { Toaster } from "react-hot-toast";
 import { QueryProvider } from "@/providers/QueryProvider";
 import { ServiceWorkerRegister } from "@/providers/ServiceWorkerRegister";
@@ -13,7 +14,13 @@ import { accentCss } from "@/lib/theme/accent";
 import { NO_FLASH_SCRIPT, ACCENT_STYLE_ID } from "@/lib/theme/apply";
 import { getServerAccent } from "@/lib/theme/server";
 import { JsonLd, organizationJsonLd, websiteJsonLd } from "@/lib/seo/jsonld";
-import { SITE_URL, SITE_NAME, SITE_DESCRIPTION, TWITTER_HANDLE, DEFAULT_OG_IMAGE } from "@/lib/seo/site";
+import {
+  SITE_URL,
+  SITE_NAME,
+  SITE_DESCRIPTION,
+  TWITTER_HANDLE,
+  DEFAULT_OG_IMAGE,
+} from "@/lib/seo/site";
 import "./globals.css";
 
 // Fonts are self-hosted via @fontsource (see imports above) instead of
@@ -137,9 +144,15 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     <html lang="en" className="h-full antialiased" suppressHydrationWarning>
       <head>
         <style id={ACCENT_STYLE_ID} dangerouslySetInnerHTML={{ __html: accentCss(accent) }} />
-        <script dangerouslySetInnerHTML={{ __html: NO_FLASH_SCRIPT }} />
       </head>
       <body className="min-h-full flex flex-col">
+        {/* Theme/font "no flash" script. next/script (not a raw <script>) avoids React 19's
+            "script tag while rendering" warning; beforeInteractive still runs it before hydration. */}
+        <Script
+          id="no-flash-theme"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: NO_FLASH_SCRIPT }}
+        />
         <ThemeProvider />
         <JsonLd data={organizationJsonLd()} />
         <JsonLd data={websiteJsonLd()} />
