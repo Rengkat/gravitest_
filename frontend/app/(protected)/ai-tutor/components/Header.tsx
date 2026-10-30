@@ -1,4 +1,4 @@
-import { Menu, Trash2 } from "lucide-react";
+import { ArrowLeft, Menu } from "lucide-react";
 import SubjectChip from "./SubjectChip";
 import { Subject } from "@/types/ai-tutor";
 import { useEffect, useRef } from "react";
@@ -7,7 +7,6 @@ import Link from "next/link";
 type SubjectObject = (typeof SUBJECTS)[number];
 
 type HeaderProps = {
-  clearChat: () => void;
   sidebarOpen: boolean;
   setSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>;
   currentSubject: SubjectObject;
@@ -16,7 +15,6 @@ type HeaderProps = {
 };
 
 const Header = ({
-  clearChat,
   sidebarOpen,
   setSidebarOpen,
   currentSubject,
@@ -41,6 +39,14 @@ const Header = ({
       className="h-16 shrink-0 bg-green-900 flex items-center justify-between px-5 border-b border-white/[0.08] relative z-10"
       role="banner">
       <div className="flex items-center gap-3">
+        <Link
+          href="/dashboard"
+          aria-label="Back to dashboard"
+          title="Back to dashboard"
+          className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-white/[0.08] px-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-white/[0.16] focus-visible:outline-2 focus-visible:outline-green-400">
+          <ArrowLeft size={16} aria-hidden="true" />
+          <span className="hidden sm:inline">Dashboard</span>
+        </Link>
         <button
           ref={menuBtnRef}
           type="button"
@@ -83,13 +89,6 @@ const Header = ({
             🇳🇬 Pidgin
           </span>
         )}
-        <button
-          onClick={clearChat}
-          aria-label="Clear all chat messages"
-          title="Clear chat"
-          className="border-none bg-white/[0.08] rounded-lg w-[34px] h-[34px] flex items-center justify-center cursor-pointer text-white/60 hover:bg-white/[0.15] hover:text-white transition-all focus-visible:outline-2 focus-visible:outline-green-400">
-          <Trash2 size={15} aria-hidden="true" />
-        </button>
       </div>
     </header>
   );

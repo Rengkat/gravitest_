@@ -27,6 +27,9 @@ export default function AITutorClientPage() {
     isLoading,
     conversations,
     loadConversation,
+    activeConversationId,
+    renameConversation,
+    deleteConversation,
     sendMessage,
     clearChat,
     handleFeedback,
@@ -59,7 +62,6 @@ export default function AITutorClientPage() {
         data-testid="ai-tutor-page"
         className="flex flex-col h-screen bg-cream font-sans overflow-hidden">
         <Header
-          clearChat={clearChat}
           sidebarOpen={sidebarOpen}
           setSidebarOpen={setSidebarOpen}
           currentSubject={currentSubject}
@@ -76,6 +78,9 @@ export default function AITutorClientPage() {
             conversations={conversations}
             onNewChat={clearChat}
             onSelectConversation={loadConversation}
+            activeConversationId={activeConversationId}
+            onRenameConversation={renameConversation}
+            onDeleteConversation={deleteConversation}
           />
 
           <div className="hidden lg:flex shrink-0">
@@ -85,6 +90,9 @@ export default function AITutorClientPage() {
               conversations={conversations}
               onNewChat={clearChat}
               onSelectConversation={loadConversation}
+              activeConversationId={activeConversationId}
+              onRenameConversation={renameConversation}
+              onDeleteConversation={deleteConversation}
             />
           </div>
 

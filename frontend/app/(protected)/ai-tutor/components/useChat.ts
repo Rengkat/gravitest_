@@ -8,6 +8,8 @@ import {
   streamTutorMessage,
   listTutorConversations,
   getTutorConversation,
+  renameTutorConversation,
+  deleteTutorConversation,
   type TutorDifficulty,
   type TutorResponseStyle,
   type AiConversationDto,
@@ -176,6 +178,49 @@ export function useChat({ selectedSubject, difficulty, responseStyle, pidgin }: 
     setActiveConversationId(null);
   }, []);
 
+  /** Rename a chat. Optimistic: the title changes at once and is rolled back if the server refuses. */
+  const renameConversation = useCallback(async (id: string, title: string) => {
+    const clean = title.trim().slice(0, 100);
+    if (!clean) return false;
+    let previous: string | undefined;
+    setConversations((prev) =>
+      prev.map((c) => {
+        if (c.id !== id) return c;
+        previous = c.title;
+        return { ...c, title: clean };
+      }),
+    );
+    try {
+      await renameTutorConversation(id, clean);
+      return true;
+    } catch (err) {
+      setConversations((prev) => prev.map((c) => (c.id === id && previous !== undefined ? { ...c, title: previous } : c)));
+      toast.error(extractErrorMessage(err));
+      return false;
+    }
+  }, []);
+
+  /** Permanently delete a chat (server first, then the list). If it was open, start a fresh chat. */
+  const deleteConversation = useCallback(
+    async (id: string) => {
+      try {
+        await deleteTutorConversation(id);
+      } catch (err) {
+        toast.error(extractErrorMessage(err));
+        return false;
+      }
+      setConversations((prev) => prev.filter((c) => c.id !== id));
+      if (id === activeConversationId) {
+        setMessages([WELCOME_MESSAGE]);
+        setInput("");
+        setActiveConversationId(null);
+      }
+      toast.success("Conversation deleted");
+      return true;
+    },
+    [activeConversationId],
+  );
+
   // Local-only — no backend endpoint for per-message like/dislike today,
   // only whole-conversation rating (rateTutorConversation). Kept as
   // lightweight UI state rather than blocked on a backend feature that
@@ -192,6 +237,8 @@ export function useChat({ selectedSubject, difficulty, responseStyle, pidgin }: 
     conversations,
     activeConversationId,
     loadConversation,
+    renameConversation,
+    deleteConversation,
     sendMessage,
     clearChat,
     handleFeedback,

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -165,6 +166,20 @@ export class AiTutorService {
       (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
     );
     return conversation;
+  }
+
+  /** Rename a conversation. Ownership is enforced by getConversation (404/403). */
+  async renameConversation(
+    userId: string,
+    id: string,
+    title: string,
+  ): Promise<{ id: string; title: string }> {
+    const conversation = await this.getConversation(userId, id);
+    const clean = title.trim();
+    if (!clean) throw new BadRequestException('Title cannot be empty.');
+    conversation.title = clean.slice(0, 100);
+    await this.conversationRepository.save(conversation);
+    return { id: conversation.id, title: conversation.title };
   }
 
   async deleteConversation(

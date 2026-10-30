@@ -11,6 +11,9 @@ interface MobileSidebarProps {
   conversations: Conversation[];
   onNewChat: () => void;
   onSelectConversation?: (id: string) => void;
+  activeConversationId?: string | null;
+  onRenameConversation?: (id: string, title: string) => Promise<boolean>;
+  onDeleteConversation?: (id: string) => Promise<boolean>;
 }
 
 export default function MobileSidebar({
@@ -21,6 +24,9 @@ export default function MobileSidebar({
   conversations,
   onNewChat,
   onSelectConversation,
+  activeConversationId,
+  onRenameConversation,
+  onDeleteConversation,
 }: MobileSidebarProps) {
   if (!open) return null;
 
@@ -43,6 +49,9 @@ export default function MobileSidebar({
           conversations={conversations}
           onNewChat={() => { onNewChat(); onClose(); }}
           onSelectConversation={onSelectConversation}
+          activeConversationId={activeConversationId}
+          onRenameConversation={onRenameConversation}
+          onDeleteConversation={onDeleteConversation}
           mobile
           onClose={onClose}
         />

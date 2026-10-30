@@ -117,6 +117,11 @@ export async function getTutorConversation(id: string) {
   return data;
 }
 
+export async function renameTutorConversation(id: string, title: string) {
+  const { data } = await apiClient.patch<{ id: string; title: string }>(`/ai/tutor/conversations/${id}`, { title });
+  return data;
+}
+
 export async function deleteTutorConversation(id: string) {
   const { data } = await apiClient.delete(`/ai/tutor/conversations/${id}`);
   return data;

@@ -7,6 +7,7 @@ import {
   Logger,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Res,
   UseGuards,
@@ -16,7 +17,11 @@ import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 import { AiTutorService } from './ai-tutor.service';
 import { SendMessageDto } from './dto/send-message.dto';
-import { RateConversationDto, FlagConversationDto } from './dto/conversation-feedback.dto';
+import {
+  RateConversationDto,
+  FlagConversationDto,
+  RenameConversationDto,
+} from './dto/conversation-feedback.dto';
 
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { UserId } from 'src/auth/decorators/current-user.decorator';
@@ -104,6 +109,18 @@ export class AiTutorController {
   @ApiResponse({ status: 200, description: 'Conversation retrieved' })
   getConversation(@UserId() userId: string, @Param('id', ParseUUIDPipe) id: string) {
     return this.tutorService.getConversation(userId, id);
+  }
+
+  @Patch('conversations/:id')
+  @ApiOperation({ summary: 'Rename a conversation' })
+  @ApiParam({ name: 'id', type: String })
+  @ApiResponse({ status: 200, description: 'Conversation renamed' })
+  renameConversation(
+    @UserId() userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RenameConversationDto,
+  ) {
+    return this.tutorService.renameConversation(userId, id, dto.title);
   }
 
   @Delete('conversations/:id')

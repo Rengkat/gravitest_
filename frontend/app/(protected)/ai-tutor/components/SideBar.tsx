@@ -1,6 +1,7 @@
 import { RefreshCw, X } from "lucide-react";
 import { SUBJECTS } from "@/lib/constants/ai-tutor";
 import { Conversation, Subject } from "@/types/ai-tutor";
+import ConversationItem from "./ConversationItem";
 
 interface SidebarProps {
   selectedSubject: Subject;
@@ -8,6 +9,9 @@ interface SidebarProps {
   conversations: Conversation[];
   onNewChat: () => void;
   onSelectConversation?: (id: string) => void;
+  activeConversationId?: string | null;
+  onRenameConversation?: (id: string, title: string) => Promise<boolean>;
+  onDeleteConversation?: (id: string) => Promise<boolean>;
   mobile?: boolean;
   onClose?: () => void;
 }
@@ -18,6 +22,9 @@ export default function Sidebar({
   conversations,
   onNewChat,
   onSelectConversation,
+  activeConversationId = null,
+  onRenameConversation,
+  onDeleteConversation,
   mobile = false,
   onClose,
 }: SidebarProps) {
@@ -89,26 +96,27 @@ export default function Sidebar({
       {conversations.length > 0 && (
         <section
           aria-label="Recent conversations"
-          className="border-t border-green-500/[0.08] p-2.5">
+          className="border-t border-green-500/[0.08] p-2.5 max-h-[42%] overflow-y-auto">
           <p className="text-[11px] font-bold tracking-[0.1em] uppercase text-text-light font-mono px-1 mb-1.5">
-            Recent
+            Your chats
           </p>
           <ul role="list" className="flex flex-col gap-0.5">
-            {conversations.slice(0, 4).map((c) => (
-              <li key={c.id}>
-                <button
-                  onClick={() => {
-                    onSelectConversation?.(c.id);
-                    onClose?.();
-                  }}
-                  className="w-full text-left px-2.5 py-1.5 rounded-lg border-none bg-transparent cursor-pointer hover:bg-green-800/[0.04] transition-colors focus-visible:outline-2 focus-visible:outline-green-500"
-                  aria-label={`Resume conversation: ${c.title}`}>
-                  <div className="text-[12px] font-semibold text-text-main mb-px truncate">
-                    {c.title}
-                  </div>
-                  <div className="text-[11px] text-text-light truncate">{c.lastMessage}</div>
-                </button>
-              </li>
+            {conversations.map((c) => (
+              <ConversationItem
+                key={c.id}
+                conversation={c}
+                active={c.id === activeConversationId}
+                onSelect={() => {
+                  onSelectConversation?.(c.id);
+                  onClose?.();
+                }}
+                onRename={(title) =>
+                  onRenameConversation ? onRenameConversation(c.id, title) : Promise.resolve(false)
+                }
+                onDelete={() =>
+                  onDeleteConversation ? onDeleteConversation(c.id) : Promise.resolve(false)
+                }
+              />
             ))}
           </ul>
         </section>
