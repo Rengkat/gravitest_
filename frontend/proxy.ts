@@ -11,11 +11,12 @@ import type { NextRequest } from "next/server";
 // every login/logout (gt_auth, gt_role, gt_onboarded). The real
 // access/refresh tokens live in localStorage only and are never sent here.
 // That means this is a UX-level redirect (keeps signed-out users off
-// dashboard shells, keeps signed-in users off the login page, keeps
-// non-admins out of /admin), not the security boundary. Every protected
-// API call is still authorized independently by the NestJS JwtAuthGuard on
-// the backend, which is the real enforcement point.
+// dashboard shells, keeps signed-in users off the login page and the
+// marketing home page, keeps non-admins out of /admin), not the security
+// boundary. Every protected API call is still authorized independently by
+// the NestJS JwtAuthGuard on the backend, which is the real enforcement point.
 
+const HOME_PAGE = "/";
 const AUTH_PAGES = ["/login", "/register", "/forgot-password"];
 const PROTECTED_PREFIXES = ["/dashboard", "/ai-tutor", "/cbt"];
 const ADMIN_PREFIXES = ["/admin"];
@@ -36,10 +37,22 @@ export function proxy(req: NextRequest) {
   // aren't accidentally forced through the wizard.
   const isOnboarded = req.cookies.get("gt_onboarded")?.value !== "0";
 
-  // Signed-in users shouldn't see the login/register/forgot-password
-  // screens. Bounce them to the right dashboard instead.
-  if (AUTH_PAGES.includes(pathname) && isAuthed) {
-    const dest = role && ADMIN_ROLES.has(role) ? "/admin" : "/dashboard";
+  // Signed-in users skip the marketing home page and the login/register/
+  // forgot-password screens entirely. They go straight to the right place:
+  //   admin / super_admin            -> /admin
+  //   student, not yet onboarded     -> /complete-registration
+  //   student / professional student -> /dashboard
+  // Only the exact home path is redirected. /pricing, /blog, /help-centre
+  // and the other public pages stay reachable while signed in.
+  if ((pathname === HOME_PAGE || AUTH_PAGES.includes(pathname)) && isAuthed) {
+    let dest = "/dashboard";
+    if (role && ADMIN_ROLES.has(role)) {
+      dest = "/admin";
+    } else if (role && STUDENT_ROLES.has(role) && !isOnboarded) {
+      dest = ONBOARDING_PAGE;
+    }
+    // Default 307 (temporary) on purpose: a permanent redirect would be
+    // cached by browsers and break the home page after logout.
     return NextResponse.redirect(new URL(dest, req.url));
   }
 
