@@ -48,8 +48,12 @@ export default function PostCard({ post, index }: { post: Post; index: number })
       href={`/blog/${post.slug}`}
       className="group flex flex-col bg-white rounded-[20px] border border-cream-border overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-[var(--shadow-card)] hover:border-green-500/25 no-underline [animation:fadeUp_0.6s_ease_both]"
       style={{ animationDelay: `${index * 0.07}s` }}>
-      {/* Colour band */}
-      <div className={`h-[5px] w-full bg-gradient-to-r ${post.gradientCls}`} />
+      {post.coverImageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={post.coverImageUrl} alt="" loading="lazy" className="aspect-[16/9] w-full object-cover" />
+      ) : (
+        <div className={`h-[5px] w-full bg-gradient-to-r ${post.gradientCls}`} />
+      )}
 
       <div className="flex flex-col flex-1 p-6">
         {/* Tag */}

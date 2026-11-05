@@ -1,7 +1,6 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import {
   IsBoolean,
-  IsEnum,
   IsInt,
   IsOptional,
   IsPositive,
@@ -11,7 +10,6 @@ import {
   MinLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { BlogCategory } from 'src/common/enums/enums';
 
 export class CreatePostDto {
   @ApiProperty({ example: 'How to Score 300+ in JAMB Mathematics' })
@@ -42,9 +40,10 @@ export class CreatePostDto {
   @MinLength(20)
   content!: string;
 
-  @ApiProperty({ enum: BlogCategory })
-  @IsEnum(BlogCategory)
-  category!: BlogCategory;
+  @ApiProperty({ example: 'jamb', description: 'Slug of an existing blog category' })
+  @IsString()
+  @MaxLength(60)
+  category!: string;
 
   @ApiProperty({ example: 'JAMB Guide' })
   @IsString()
@@ -97,10 +96,11 @@ export class CreatePostDto {
 export class UpdatePostDto extends PartialType(CreatePostDto) {}
 
 export class PostFilterDto {
-  @ApiPropertyOptional({ enum: BlogCategory })
+  @ApiPropertyOptional({ example: 'jamb' })
   @IsOptional()
-  @IsEnum(BlogCategory)
-  category?: BlogCategory;
+  @IsString()
+  @MaxLength(60)
+  category?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

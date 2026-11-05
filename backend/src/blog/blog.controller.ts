@@ -45,6 +45,13 @@ export class BlogController {
   }
 
   @Public()
+  @Get('posts/popular')
+  @ApiOperation({ summary: 'Most-read published posts' })
+  findPopular() {
+    return this.blogService.findPopular();
+  }
+
+  @Public()
   @Get('posts/:slug')
   @ApiOperation({ summary: 'Get a single published post by slug' })
   async findBySlug(@Param('slug') slug: string) {

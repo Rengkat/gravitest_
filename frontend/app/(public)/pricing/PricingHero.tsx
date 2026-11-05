@@ -9,12 +9,13 @@ import {
   type Billing,
 } from "@/lib/billing/pricing-page";
 import LivePlanCards, { PlanCardsSkeleton } from "./LivePlanCards";
+import type { PricingPage } from "@/lib/site-content/types";
 
 /* ─── Section ──────────────────────────────────────────────
    Every card, price and promo here comes from the admin-managed plans.
    There is deliberately NO hard-coded fallback: if the plans can't be
    loaded we say so, rather than show prices that may no longer be true.   */
-export default function PricingHero() {
+export default function PricingHero({ content }: { content: PricingPage }) {
   const [picked, setBilling] = useState<Billing>("monthly");
   const { data: plans, isLoading, refetch } = usePlans();
   const live = !!plans && plans.length > 0;
@@ -54,20 +55,25 @@ export default function PricingHero() {
           <span className="text-[11px] font-bold text-green-600 tracking-[0.12em] uppercase">Pricing</span>
         </div>
 
-        {/* Headline */}
-        <h1
-          className="font-serif text-green-900 leading-[1.08] tracking-[-1.5px] mb-5 [animation:fadeUp_0.6s_0.1s_ease_both]"
-          style={{ fontSize: "clamp(42px, 5vw, 68px)" }}>
-          Simple pricing.
-          <br />
-          <em className="not-italic text-green-600">Big results.</em>
-        </h1>
+        {content.heroTitle && (
+          <h1
+            className="font-serif text-green-900 leading-[1.08] tracking-[-1.5px] mb-5 [animation:fadeUp_0.6s_0.1s_ease_both]"
+            style={{ fontSize: "clamp(42px, 5vw, 68px)" }}>
+            {content.heroTitle}
+            {content.heroTitleHighlight && (
+              <>
+                <br />
+                <em className="not-italic text-green-600">{content.heroTitleHighlight}</em>
+              </>
+            )}
+          </h1>
+        )}
 
-        {/* Sub */}
-        <p className="text-lg text-text-muted max-w-[520px] mx-auto mb-12 leading-[1.7] [animation:fadeUp_0.6s_0.2s_ease_both]">
-          Start free. Upgrade when you&apos;re ready. No hidden fees, no tricks, no
-          &ldquo;gotcha&rdquo; moments.
-        </p>
+        {content.heroSubtitle && (
+          <p className="text-lg text-text-muted max-w-[520px] mx-auto mb-12 leading-[1.7] [animation:fadeUp_0.6s_0.2s_ease_both]">
+            {content.heroSubtitle}
+          </p>
+        )}
 
         {/* Billing toggle */}
         <div className={`flex justify-center mb-16 [animation:fadeUp_0.6s_0.25s_ease_both] ${showToggle ? "" : "hidden"}`}>

@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Calendar, Clock, ArrowLeft, Eye } from "lucide-react";
 import * as blogApi from "@/lib/api/blog";
-import { CATEGORIES } from "../blogData";
+import { getCollection } from "@/lib/api/site-content";
+import type { BlogCategoryItem } from "@/lib/site-content/types";
 import SimpleMarkdown from "./SimpleMarkdown";
 import PostCard from "../PostCard";
 import { JsonLd, articleJsonLd, breadcrumbJsonLd } from "@/lib/seo/jsonld";
@@ -67,8 +68,14 @@ export default async function BlogPostPage({
   if (!data) notFound();
 
   const { post, related } = data;
-  const categoryLabel = CATEGORIES.find((c) => c.id === post.category)?.label ?? post.tag;
-  const frontendRelated = related.map(blogApi.toFrontendPost);
+  // Category label + cover style are admin-managed; fall back to the post's own tag.
+  const categories = await getCollection<BlogCategoryItem>("blog-categories").catch(() => []);
+  const category = categories.find((c) => c.slug === post.category);
+  const categoryLabel = category?.label ?? post.tag;
+  const frontendPost = blogApi.toFrontendPost(post, category?.gradient);
+  const frontendRelated = related.map((p) =>
+    blogApi.toFrontendPost(p, categories.find((c) => c.slug === p.category)?.gradient),
+  );
 
   return (
     <article className="bg-cream min-h-screen">
@@ -91,7 +98,7 @@ export default async function BlogPostPage({
         ])}
       />
       {/* Hero */}
-      <div className={`bg-gradient-to-br ${blogApi.toFrontendPost(post).gradientCls} text-white pt-[140px] pb-16 px-[5%]`}>
+      <div className={`bg-gradient-to-br ${frontendPost.gradientCls} text-white pt-[140px] pb-16 px-[5%]`}>
         <div className="max-w-3xl mx-auto">
           <Link
             href="/blog"
@@ -131,6 +138,13 @@ export default async function BlogPostPage({
           </div>
         </div>
       </div>
+
+      {post.coverImageUrl && (
+        <div className="max-w-3xl mx-auto px-[5%] -mt-8 relative z-[1]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={post.coverImageUrl} alt="" className="w-full rounded-2xl shadow-[var(--shadow-card)] aspect-[16/9] object-cover" />
+        </div>
+      )}
 
       {/* Body */}
       <div className="max-w-3xl mx-auto px-[5%] py-14">

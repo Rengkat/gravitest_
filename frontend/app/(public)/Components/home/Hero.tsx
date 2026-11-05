@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
+import type { HomeHero } from "@/lib/site-content/types";
 
 const GRID_CELLS: Array<"answered" | "flagged" | "current" | "default"> = [
   "answered",
@@ -58,7 +59,7 @@ function OmrPattern() {
   );
 }
 
-export default function Hero() {
+export default function Hero({ content }: { content: HomeHero }) {
   useEffect(() => {
     let seconds = 84 * 60 + 38;
     const el = document.querySelector<HTMLElement>(".exam-timer-text");
@@ -88,50 +89,51 @@ export default function Hero() {
       {/* ── Left: content ── */}
       <div className="relative z-[1]">
         <div className="[animation:fadeUp_0.6s_0.1s_ease_both]">
-          <p className="font-mono text-xs font-semibold tracking-[0.16em] text-green-700 uppercase mb-4">
-            JAMB · WAEC · ICAN · Nursing &amp; more
-          </p>
+          {content.badge && (
+            <p className="font-mono text-xs font-semibold tracking-[0.16em] text-green-700 uppercase mb-4">
+              {content.badge}
+            </p>
+          )}
 
           <h1
             className="font-serif font-bold leading-[1.12] tracking-[-0.02em] text-green-900 mb-6"
             style={{ fontSize: "clamp(38px,4.6vw,60px)" }}>
-            Practice the exam
-            <br />
-            you&apos;re actually sitting
-            {/* <span className="relative inline-block">
-              .
-              <span className="absolute -bottom-1 left-0 right-[-14px] h-[3px] bg-gold/70 rounded-full" />
-            </span> */}
+            {content.titleLead}
+            {content.titleHighlight && (
+              <>
+                <br />
+                {content.titleHighlight}
+              </>
+            )}
           </h1>
         </div>
 
-        <p className="text-base text-gray-600 leading-relaxed max-w-[480px] mb-10 font-light tracking-wide [animation:fadeUp_0.6s_0.2s_ease_both]">
-          Gravitest mirrors the real JAMB and WAEC CBT screens, question format and all, so nothing
-          about test day catches you off guard. Every wrong answer comes with a worked explanation,
-          and it all runs fine on 2G.
-        </p>
+        {content.subtitle && (
+          <p className="text-base text-gray-600 leading-relaxed max-w-[480px] mb-10 font-light tracking-wide [animation:fadeUp_0.6s_0.2s_ease_both]">
+            {content.subtitle}
+          </p>
+        )}
 
-        <div className="flex items-center gap-4 mb-10 [animation:fadeUp_0.6s_0.3s_ease_both]">
-          <Link
-            href="/register"
-            className="inline-flex items-center gap-2.5 px-9 py-4 bg-gradient-to-b from-green-700 to-green-800 rounded-lg text-white font-sans text-sm font-medium no-underline tracking-wide shadow-[0_8px_20px_rgba(26,74,46,0.28)] transition-all duration-300 hover:from-green-600 hover:to-green-700 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgba(26,74,46,0.35)] active:translate-y-0 active:shadow-[0_4px_12px_rgba(26,74,46,0.25)]">
-            Start practising free
-            <svg
-              width="16"
-              height="16"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth="2.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5-5 5M6 12h12" />
-            </svg>
-          </Link>
-          <Link
-            href="#"
-            className="inline-flex bg-gradient-to-b from-green-700 to-green-800 items-center gap-2 px-5 py-4 text-white font-sans text-sm font-medium no-underline border border-green-800/20 rounded-lg transition-all duration-200 hover:border-green-800/50 hover:bg-green-800/[0.04]">
-            See a sample question
-          </Link>
+        <div className="flex flex-wrap items-center gap-4 mb-10 [animation:fadeUp_0.6s_0.3s_ease_both]">
+          {content.primaryCtaLabel && content.primaryCtaHref && (
+            <Link
+              href={content.primaryCtaHref}
+              className="inline-flex items-center gap-2.5 px-9 py-4 bg-gradient-to-b from-green-700 to-green-800 rounded-lg text-white font-sans text-sm font-medium no-underline tracking-wide shadow-[0_8px_20px_rgba(26,74,46,0.28)] transition-all duration-300 hover:from-green-600 hover:to-green-700 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgba(26,74,46,0.35)] active:translate-y-0 active:shadow-[0_4px_12px_rgba(26,74,46,0.25)]">
+              {content.primaryCtaLabel}
+              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5-5 5M6 12h12" />
+              </svg>
+            </Link>
+          )}
+          {content.secondaryCtaLabel && content.secondaryCtaHref && (
+            <Link
+              href={content.secondaryCtaHref}
+              className="inline-flex bg-gradient-to-b from-green-700 to-green-800 items-center gap-2 px-5 py-4 text-white font-sans text-sm font-medium no-underline border border-green-800/20 rounded-lg transition-all duration-200 hover:border-green-800/50 hover:bg-green-800/[0.04]">
+              {content.secondaryCtaLabel}
+            </Link>
+          )}
         </div>
+        {content.trustNote && <p className="-mt-6 mb-10 text-xs text-text-muted">{content.trustNote}</p>}
 
         <div className="flex items-center gap-2.5 text-sm text-gray-500 [animation:fadeUp_0.6s_0.4s_ease_both]">
           <span className="w-1.5 h-1.5 rounded-full bg-green-500" />

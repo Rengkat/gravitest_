@@ -6,7 +6,6 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { BlogCategory } from 'src/common/enums/enums';
 
 @Entity('blog_posts')
 export class Post {
@@ -29,8 +28,12 @@ export class Post {
   @Column({ type: 'text' })
   content!: string;
 
-  @Column({ type: 'enum', enum: BlogCategory })
-  category!: BlogCategory;
+  // Slug of an admin-managed blog category (collection `blog-categories`).
+  // Validated against that collection on write, so it is a plain varchar
+  // rather than a DB enum — admins can add categories without a migration.
+  @Index()
+  @Column({ type: 'varchar', length: 60 })
+  category!: string;
 
   // Short display label shown as a chip on the card (e.g. "JAMB Guide") —
   // deliberately separate from `category`, which drives filtering/routing.

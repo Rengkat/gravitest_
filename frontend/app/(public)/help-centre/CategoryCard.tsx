@@ -1,80 +1,66 @@
-import { Category } from "@/lib/constants/help-data";
 import { useState } from "react";
+import Link from "next/link";
+import DynamicIcon from "@/Components/DynamicIcon";
 import StatusBadge from "./StatusBadge";
+import type { PublicItem } from "@/lib/api/site-content";
+import type { HelpCategoryItem } from "@/lib/site-content/types";
 
-/* ─────────────────────────────────────────────────────────
-   CATEGORY CARD
-───────────────────────────────────────────────────────── */
-export default function CategoryCard({ cat, index }: { cat: Category; index: number }) {
-  const [hovered, setHovered] = useState(false);
-  const IconComponent = cat.icon;
+const SLUG_OK = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+export default function CategoryCard({ cat, index }: { cat: PublicItem<HelpCategoryItem>; index: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const color = cat.color && /^#[0-9a-fA-F]{6}$/.test(cat.color) ? cat.color : "#1a4a2e";
+  const articles = cat.articles ?? [];
+  const shown = expanded ? articles : articles.slice(0, 3);
 
   return (
-    <a
-      href={`/help/category/${cat.title.toLowerCase().replace(/\s+/g, "-")}`}
+    <section
       data-testid={`category-card-${index}`}
-      className="block no-underline rounded-[20px] p-7 border transition-all duration-300"
-      style={{
-        background: "white",
-        border: `1px solid ${hovered ? "rgba(46,139,87,0.25)" : "rgba(30,80,50,0.1)"}`,
-        transform: hovered ? "translateY(-3px)" : "none",
-        boxShadow: hovered ? "0 4px 32px rgba(13,43,26,0.10)" : "none",
-        animationDelay: `${index * 0.07}s`,
-      }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}>
-      {/* Icon */}
-      <div
-        className="w-11 h-11 rounded-xl flex items-center justify-center mb-4"
-        style={{ background: `${cat.color}18` }}>
-        <IconComponent size={22} strokeWidth={1.8} style={{ color: cat.color }} />
+      aria-label={cat.title}
+      className="block rounded-[20px] p-7 border"
+      style={{ background: "white", border: "1px solid rgba(30,80,50,0.1)" }}>
+      <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-4" style={{ background: `${color}18`, color }}>
+        <DynamicIcon name={cat.icon} size={22} strokeWidth={1.8} />
       </div>
 
-      {/* Title + article count */}
       <div className="flex items-start justify-between gap-2 mb-2">
-        <h3
-          style={{
-            fontFamily: "'DM Serif Display', serif",
-            fontSize: 18,
-            color: "#0d2b1a",
-            lineHeight: 1.25,
-          }}>
-          {cat.title}
-        </h3>
-        <span
-          className="shrink-0 px-2 py-0.5 rounded-full text-[11px] font-bold mt-0.5"
-          style={{
-            background: "rgba(26,74,46,0.07)",
-            color: "#276b43",
-            fontFamily: "'JetBrains Mono', monospace",
-          }}>
-          {cat.articles.length}
+        <h3 style={{ fontFamily: "'DM Serif Display', serif", fontSize: 18, color: "#0d2b1a", lineHeight: 1.25 }}>{cat.title}</h3>
+        <span className="shrink-0 px-2 py-0.5 rounded-full text-[11px] font-bold mt-0.5" style={{ background: "rgba(26,74,46,0.07)", color: "#276b43", fontFamily: "'JetBrains Mono', monospace" }}>
+          {articles.length}
         </span>
       </div>
 
-      <p style={{ fontSize: 13, color: "#4a6357", lineHeight: 1.6, marginBottom: 20 }}>
-        {cat.description}
-      </p>
+      {cat.description && <p style={{ fontSize: 13, color: "#4a6357", lineHeight: 1.6, marginBottom: 20 }}>{cat.description}</p>}
 
-      {/* Top articles preview */}
       <ul className="flex flex-col gap-2" style={{ listStyle: "none" }}>
-        {cat.articles.slice(0, 3).map((art) => (
-          <li key={art.slug} className="flex items-center gap-2">
-            <div className="w-1 h-1 rounded-full shrink-0" style={{ background: cat.color }} />
-            <span
-              style={{ fontSize: 12, color: "#4a6357", lineHeight: 1.4 }}
-              className="flex-1 truncate">
-              {art.title}
-            </span>
-            {art.status && <StatusBadge status={art.status} />}
-          </li>
-        ))}
-        {cat.articles.length > 3 && (
-          <li style={{ fontSize: 12, color: "#8aab98", paddingLeft: 12 }}>
-            +{cat.articles.length - 3} more articles
-          </li>
-        )}
+        {shown.map((art, i) => {
+          const linked = !!art.body && !!art.slug && SLUG_OK.test(art.slug);
+          return (
+            <li key={`${art.title}-${i}`} className="flex items-center gap-2">
+              <div className="w-1 h-1 rounded-full shrink-0" style={{ background: color }} />
+              {linked ? (
+                <Link href={`/help-centre/${art.slug}`} className="flex-1 truncate no-underline hover:underline" style={{ fontSize: 12, color: "#1a4a2e", lineHeight: 1.4 }}>
+                  {art.title}
+                </Link>
+              ) : (
+                <span className="flex-1 truncate" style={{ fontSize: 12, color: "#4a6357", lineHeight: 1.4 }}>{art.title}</span>
+              )}
+              {art.status && <StatusBadge status={art.status} />}
+            </li>
+          );
+        })}
       </ul>
-    </a>
+
+      {articles.length > 3 && (
+        <button
+          type="button"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((e) => !e)}
+          className="mt-3 text-[12px] font-semibold underline"
+          style={{ color: "#276b43", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+          {expanded ? "Show fewer" : `Show all ${articles.length} articles`}
+        </button>
+      )}
+    </section>
   );
 }

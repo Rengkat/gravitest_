@@ -1,75 +1,47 @@
-import { BarChart2, Mic, Infinity, Send, BookOpen } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-
-/* ─── Types ──────────────────────────────────────────────── */
-type AIFeature = {
-  Icon: LucideIcon;
-  title: string;
-  desc: string;
-};
-
-/* ─── Data ───────────────────────────────────────────────── */
-const AI_FEATURES: AIFeature[] = [
-  {
-    Icon: BarChart2,
-    title: "Post-Exam Post-Mortem",
-    desc: '"You got 8/10 Quadratic Equations questions wrong. Here\'s your 2-minute refresher." Not just a score — a direction.',
-  },
-  {
-    Icon: Mic,
-    title: "Voice & Pidgin Input",
-    desc: "Speak your question in English or Pidgin. Works on cheap Android phones. No typing needed.",
-  },
-  {
-    Icon: Infinity,
-    title: "Endless Practice Generation",
-    desc: "AI generates unlimited new questions on your weakest topics. You'll never run out of material.",
-  },
-];
+import { Send, BookOpen, Sparkles } from "lucide-react";
+import { ICON_REGISTRY } from "@/lib/site-content/icons";
+import type { HomeAiTutor } from "@/lib/site-content/types";
 
 /* ─── Section ────────────────────────────────────────────── */
-export default function AITutor() {
+export default function AITutor({ content }: { content: HomeAiTutor }) {
+  const features = content.items ?? [];
   return (
     <section className="px-[5%] py-[100px] bg-cream relative">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-20 items-center">
         {/* ── Left: copy + feature list ── */}
         <div className="[animation:fadeUp_0.6s_ease_both]">
-          {/* Label */}
-          <div className="inline-flex items-center gap-2 mb-4 before:content-[''] before:block before:w-6 before:h-0.5 before:rounded-sm before:bg-green-500">
-            <span className="text-[11px] font-bold text-green-600 tracking-[0.12em] uppercase">
-              AI Gravitest-Tutor
-            </span>
-          </div>
+          {content.eyebrow && (
+            <div className="inline-flex items-center gap-2 mb-4 before:content-[''] before:block before:w-6 before:h-0.5 before:rounded-sm before:bg-green-500">
+              <span className="text-[11px] font-bold text-green-600 tracking-[0.12em] uppercase">{content.eyebrow}</span>
+            </div>
+          )}
+          {content.title && (
+            <h2
+              className="font-serif font-bold text-green-900 leading-[1.1] tracking-[-0.03em] mb-4"
+              style={{ fontSize: "clamp(32px, 4vw, 52px)", maxWidth: "600px" }}>
+              {content.title}
+            </h2>
+          )}
+          {content.subtitle && <p className="text-base text-text-muted leading-[1.7] max-w-[480px] mb-8">{content.subtitle}</p>}
 
-          {/* Title */}
-          <h2
-            className="font-serif font-bold text-green-900 leading-[1.1] tracking-[-0.03em] mb-4"
-            style={{ fontSize: "clamp(32px, 4vw, 52px)", maxWidth: "600px" }}>
-            Your personal tutor. Available 24/7. Speaks Pidgin.
-          </h2>
-
-          {/* Sub */}
-          <p className="text-base text-text-muted leading-[1.7] max-w-[480px] mb-8">
-            Explains concepts using examples from your world — garri, danfo, market prices.
-            Familiar. Memorable.
-          </p>
-
-          {/* Feature list */}
           <div className="flex flex-col gap-3.5">
-            {AI_FEATURES.map(({ Icon, title, desc }, i) => (
-              <div
-                key={title}
-                className="flex items-start gap-3.5 p-4 bg-white rounded-[14px] border border-cream-border [animation:fadeUp_0.6s_ease_both]"
-                style={{ animationDelay: `${i * 0.1}s` }}>
-                <div className="w-9 h-9 rounded-xl bg-green-500/10 text-green-600 flex items-center justify-center shrink-0">
-                  <Icon size={18} strokeWidth={1.75} />
+            {features.map(({ icon, title, description }, i) => {
+              const Icon = ICON_REGISTRY[icon] ?? Sparkles;
+              return (
+                <div
+                  key={`${title}-${i}`}
+                  className="flex items-start gap-3.5 p-4 bg-white rounded-[14px] border border-cream-border [animation:fadeUp_0.6s_ease_both]"
+                  style={{ animationDelay: `${i * 0.1}s` }}>
+                  <div className="w-9 h-9 rounded-xl bg-green-500/10 text-green-600 flex items-center justify-center shrink-0">
+                    <Icon size={18} strokeWidth={1.75} aria-hidden="true" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-green-900 mb-1">{title}</div>
+                    <div className="text-[13px] text-text-muted leading-[1.6]">{description}</div>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-sm font-bold text-green-900 mb-1">{title}</div>
-                  <div className="text-[13px] text-text-muted leading-[1.6]">{desc}</div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 

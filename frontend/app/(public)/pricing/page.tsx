@@ -3,11 +3,21 @@ import type { Metadata } from "next";
 import PricingPageClient from "./PricingClient";
 import { JsonLd, breadcrumbJsonLd, faqJsonLd } from "@/lib/seo/jsonld";
 import { absoluteUrl } from "@/lib/seo/site";
-import { ADDITIONAL_FAQS, FAQS } from "@/lib/constants/pricing";
+import { getCollection } from "@/lib/api/site-content";
+import type { FaqItem } from "@/lib/site-content/types";
 
-const PRICING_FAQ_CATEGORIES = ["Getting Started", "Billing & Subscription"];
-const PRICING_FAQS = FAQS.filter((faq) => PRICING_FAQ_CATEGORIES.includes(faq.category));
-const ALL_PRICING_FAQS = [...PRICING_FAQS, ...ADDITIONAL_FAQS];
+// FAQs shown on this page are admin-managed; refresh the structured data with them.
+export const revalidate = 60;
+
+async function loadPricingFaqs() {
+  try {
+    const faqs = await getCollection<FaqItem>("faqs");
+    return faqs.filter((f) => f.showOnPricing);
+  } catch {
+    // Never fail the page because structured data couldn't be built.
+    return [];
+  }
+}
 
 export const metadata: Metadata = {
   title: "Pricing — Affordable JAMB & WAEC, ICAN, Nigeria Nursing Council Exam Prep Plans",
@@ -44,13 +54,14 @@ export const metadata: Metadata = {
   },
 };
 
-const Pricing = () => {
+const Pricing = async () => {
+  const faqs = await loadPricingFaqs();
   return (
     <>
       <JsonLd data={breadcrumbJsonLd([{ name: "Home", path: "/" }, { name: "Pricing", path: "/pricing" }])} />
-      <JsonLd
-        data={faqJsonLd(ALL_PRICING_FAQS.map((f) => ({ question: f.question, answer: f.answer })))}
-      />
+      {faqs.length > 0 && (
+        <JsonLd data={faqJsonLd(faqs.map((f) => ({ question: f.question, answer: f.answer })))} />
+      )}
       <PricingPageClient />
     </>
   );

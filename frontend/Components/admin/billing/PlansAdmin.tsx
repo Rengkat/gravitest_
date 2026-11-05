@@ -45,6 +45,7 @@ export default function PlansAdmin() {
 function PlanRow({ plan: p, editing, setEditing }: { plan: AdminPlan; editing: "price" | "promo" | null; setEditing: (m: "price" | "promo" | null) => void }) {
   const clearPromo = useClearPlanPromo();
   const archive = useArchivePlan();
+  const update = useUpdatePlan();
   const eff = p.effective;
   const countdown = eff.isPromo ? promoCountdown(eff.promoEndsAt) : null;
   const isFree = p.tier === "free";
@@ -86,6 +87,16 @@ function PlanRow({ plan: p, editing, setEditing }: { plan: AdminPlan; editing: "
           )}
           <Btn danger disabled={archive.isPending} onClick={() => { if (window.confirm(`Retire "${p.name}"? Existing subscribers keep it; nobody new can buy it.`)) archive.mutate(p.id); }}>
             Retire
+          </Btn>
+        </div>
+      )}
+
+      {!p.isActive && !isFree && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Btn
+            disabled={update.isPending}
+            onClick={() => update.mutate({ id: p.id, input: { isActive: true } })}>
+            Reactivate (put back on sale)
           </Btn>
         </div>
       )}

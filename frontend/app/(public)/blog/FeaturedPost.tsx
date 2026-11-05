@@ -24,6 +24,10 @@ export default function FeaturedPost({ post }: { post: Post }) {
           {/* Left — visual */}
           <div
             className={`relative min-h-[280px] lg:min-h-[400px] bg-gradient-to-br ${post.gradientCls} flex flex-col justify-between p-8 lg:p-10 overflow-hidden`}>
+            {post.coverImageUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={post.coverImageUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-40" />
+            )}
             {/* Grid */}
             <div
               className="absolute inset-0 pointer-events-none opacity-20"

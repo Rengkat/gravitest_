@@ -28,6 +28,7 @@ import {
   Brain,
   Crown,
   BadgePercent,
+  Globe,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -80,6 +81,11 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
     href: "/admin/transactions",
     label: "Transactions",
     icon: CreditCard,
+  },
+  {
+    href: "/admin/website",
+    label: "Website Content",
+    icon: Globe,
   },
   {
     href: "/admin/billing",

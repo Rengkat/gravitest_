@@ -1,141 +1,112 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { HelpCircle } from "lucide-react";
-import { ADDITIONAL_FAQS, FAQS, STATS } from "@/lib/constants/pricing";
-import FaqItem from "./FaqItem";
+import DynamicIcon from "@/Components/DynamicIcon";
 import SectionLabel from "@/Components/SectionLabel";
-// import CategoryBadge from "./CategoryBadge";
+import FaqItem from "./FaqItem";
+import { useBlocks, useCollection } from "@/lib/hooks/useSiteContent";
 
-const PRICING_FAQ_CATEGORIES = ["Getting Started", "Billing & Subscription"];
+const BLOCKS = ["pricing.page", "site.contact"] as const;
 
-const PRICING_FAQS = FAQS.filter((faq) => PRICING_FAQ_CATEGORIES.includes(faq.category));
-
-const ALL_PRICING_FAQS = [...PRICING_FAQS, ...ADDITIONAL_FAQS];
-
+/** Pricing-page FAQ: the admin's FAQs ticked "show on pricing page", plus the stat tiles and contact box. */
 export default function PricingFAQ() {
+  const { data: allFaqs } = useCollection("faqs");
+  const { blocks } = useBlocks(BLOCKS);
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const [activeCategory, setActiveCategory] = useState<string>("all");
 
-  const categories = ["all", ...new Set(ALL_PRICING_FAQS.map((f) => f.category))];
+  const faqs = (allFaqs ?? []).filter((f) => f.showOnPricing);
+  const page = blocks?.["pricing.page"] ?? {};
+  const contact = blocks?.["site.contact"] ?? {};
+  const stats = page.faqStats ?? [];
 
-  const filteredFaqs =
-    activeCategory === "all"
-      ? ALL_PRICING_FAQS
-      : ALL_PRICING_FAQS.filter((f) => f.category === activeCategory);
+  if (!faqs.length && !stats.length) return null;
+
+  const categories = ["all", ...new Set(faqs.map((f) => f.category))];
+  const visible = activeCategory === "all" ? faqs : faqs.filter((f) => f.category === activeCategory);
+  const supportHref = contact.supportEmail ? `mailto:${contact.supportEmail}` : "/help-centre";
 
   return (
     <section className="px-[5%] py-[100px] bg-cream">
       <div className="max-w-3xl mx-auto">
-        {/* Header */}
         <div className="text-center mb-12">
           <SectionLabel>FAQ</SectionLabel>
-          <h2
-            className="font-serif text-green-900 tracking-[-0.8px] mb-3"
-            style={{ fontSize: "clamp(28px, 3.5vw, 44px)" }}>
-            Frequently Asked Questions
-          </h2>
-          <p className="text-base text-text-muted">
-            Everything you need to know about Gravitest pricing and plans.
-          </p>
+          {page.faqTitle && (
+            <h2 className="font-serif text-green-900 tracking-[-0.8px] mb-3" style={{ fontSize: "clamp(28px, 3.5vw, 44px)" }}>
+              {page.faqTitle}
+            </h2>
+          )}
+          {page.faqSubtitle && <p className="text-base text-text-muted">{page.faqSubtitle}</p>}
         </div>
 
-        {/* Stats Row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
-          {STATS.map((stat) => {
-            const IconComponent = stat.icon;
-            return (
-              <div
-                key={stat.label}
-                className="text-center p-4 rounded-2xl bg-white border"
-                style={{ borderColor: "rgba(30,80,50,0.08)" }}>
+        {stats.length > 0 && (
+          <ul className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12 list-none">
+            {stats.map((stat, i) => (
+              <li key={`${stat.label}-${i}`} className="text-center p-4 rounded-2xl bg-white border border-green-900/10">
                 <div className="flex justify-center mb-2">
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center"
-                    style={{ background: `${stat.color}10` }}>
-                    <IconComponent size={18} strokeWidth={1.8} style={{ color: stat.color }} />
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-green-500/10 text-green-600">
+                    <DynamicIcon name={stat.icon} size={18} strokeWidth={1.8} />
                   </div>
                 </div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: "#0d2b1a", marginBottom: 4 }}>
-                  {stat.value}
-                </div>
-                <div style={{ fontSize: 11, color: "#4a6357" }}>{stat.label}</div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Category Filters */}
-        <div className="flex flex-wrap gap-2 justify-center mb-8">
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setActiveCategory(cat)}
-              className="px-4 py-2 rounded-full text-[13px] font-medium transition-all duration-200 capitalize"
-              style={{
-                background: activeCategory === cat ? "#1a4a2e" : "white",
-                color: activeCategory === cat ? "white" : "#4a6357",
-                border: activeCategory === cat ? "none" : "1px solid rgba(30,80,50,0.15)",
-              }}>
-              {cat === "all" ? "All Questions" : cat}
-            </button>
-          ))}
-        </div>
-
-        {/* FAQ Accordion */}
-        <div
-          className="bg-white rounded-2xl border overflow-hidden"
-          style={{ borderColor: "rgba(30,80,50,0.1)" }}>
-          <div className="p-6">
-            {filteredFaqs.map((faq, index) => (
-              <FaqItem
-                key={index}
-                question={faq.question}
-                answer={faq.answer}
-                isOpen={openIndex === index}
-                onClick={() => setOpenIndex(openIndex === index ? null : index)}
-              />
+                <div className="text-lg font-bold text-green-900 mb-1">{stat.value}</div>
+                <div className="text-[11px] text-text-muted">{stat.label}</div>
+              </li>
             ))}
-          </div>
-        </div>
+          </ul>
+        )}
 
-        {/* Still have questions */}
-        <div
-          className="mt-12 text-center p-8 rounded-2xl"
-          style={{ background: "white", border: "1px solid rgba(30,80,50,0.08)" }}>
-          <HelpCircle size={32} strokeWidth={1.5} style={{ color: "#1a4a2e", marginBottom: 16 }} />
-          <h3
-            style={{
-              fontFamily: "'DM Serif Display', serif",
-              fontSize: 20,
-              color: "#0d2b1a",
-              marginBottom: 8,
-            }}>
-            Still have questions?
-          </h3>
-          <p style={{ fontSize: 14, color: "#4a6357", marginBottom: 20 }}>
-            {"Can't find the answer you're looking for? Please chat with our friendly team."}
-          </p>
-          <div className="flex gap-3 justify-center">
-            <button
-              className="px-6 py-2.5 rounded-xl text-[13px] font-semibold transition-all duration-200"
-              style={{
-                background: "#1a4a2e",
-                color: "white",
-              }}>
-              Contact Support
-            </button>
-            <button
-              className="px-6 py-2.5 rounded-xl text-[13px] font-semibold transition-all duration-200 border-2"
-              style={{
-                background: "transparent",
-                borderColor: "rgba(26,74,46,0.2)",
-                color: "#1a4a2e",
-              }}>
-              View All FAQs
-            </button>
+        {faqs.length > 0 && (
+          <>
+            {categories.length > 2 && (
+              <div className="flex flex-wrap gap-2 justify-center mb-8">
+                {categories.map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    aria-pressed={activeCategory === cat}
+                    onClick={() => { setActiveCategory(cat); setOpenIndex(null); }}
+                    className={`px-4 py-2 rounded-full text-[13px] font-medium transition-all duration-200 ${
+                      activeCategory === cat ? "bg-green-800 text-white" : "bg-white text-text-muted border border-green-900/15"
+                    }`}>
+                    {cat === "all" ? "All Questions" : cat}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="bg-white rounded-2xl border border-green-900/10 overflow-hidden">
+              <div className="p-6">
+                {visible.map((faq, index) => (
+                  <FaqItem
+                    key={faq.id}
+                    question={faq.question}
+                    answer={faq.answer}
+                    isOpen={openIndex === index}
+                    onClick={() => setOpenIndex(openIndex === index ? null : index)}
+                  />
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {(page.faqContactTitle || page.faqContactText) && (
+          <div className="mt-12 text-center p-8 rounded-2xl bg-white border border-green-900/10">
+            <HelpCircle size={32} strokeWidth={1.5} className="mx-auto mb-4 text-green-800" aria-hidden="true" />
+            {page.faqContactTitle && <h3 className="font-serif text-xl text-green-900 mb-2">{page.faqContactTitle}</h3>}
+            {page.faqContactText && <p className="text-sm text-text-muted mb-5">{page.faqContactText}</p>}
+            <div className="flex gap-3 justify-center flex-wrap">
+              <Link href={supportHref} className="px-6 py-2.5 rounded-xl text-[13px] font-semibold bg-green-800 text-white no-underline">
+                Contact Support
+              </Link>
+              <Link href="/help-centre" className="px-6 py-2.5 rounded-xl text-[13px] font-semibold border-2 border-green-800/20 text-green-800 no-underline">
+                View All FAQs
+              </Link>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </section>
   );

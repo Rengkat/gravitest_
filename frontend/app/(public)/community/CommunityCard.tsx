@@ -10,7 +10,8 @@ export default function CommunityCard({
   inviteLink,
   color,
   bgColor,
-  buttonColor,
+  buttonLabel,
+  textColor,
 }: {
   platform: string;
   icon: React.ElementType;
@@ -19,7 +20,8 @@ export default function CommunityCard({
   inviteLink: string;
   color: string;
   bgColor: string;
-  buttonColor: string;
+  buttonLabel?: string;
+  textColor: string;
 }) {
   const [hovered, setHovered] = useState(false);
 
@@ -52,7 +54,7 @@ export default function CommunityCard({
 
       <div className="flex items-center gap-2 mb-4">
         <Users2 size={14} strokeWidth={1.8} style={{ color: "#8aab98" }} />
-        <span style={{ fontSize: 13, color: "#4a6357" }}>{members} members</span>
+        <span style={{ fontSize: 13, color: "#4a6357" }}>{members}</span>
       </div>
 
       <p style={{ fontSize: 14, color: "#4a6357", lineHeight: 1.6, marginBottom: 24 }}>
@@ -65,10 +67,10 @@ export default function CommunityCard({
         rel="noopener noreferrer"
         className="inline-flex items-center justify-between w-full px-5 py-3 rounded-xl font-sans text-[14px] font-semibold no-underline transition-all duration-200 group"
         style={{
-          background: buttonColor,
-          color: platform === "WhatsApp" ? "#075E54" : "#2AABEE",
+          background: bgColor,
+          color: textColor,
         }}>
-        <span>Join {platform} Community →</span>
+        <span>{buttonLabel || `Join ${platform} Community`} →</span>
         <ArrowRight
           size={16}
           strokeWidth={2}

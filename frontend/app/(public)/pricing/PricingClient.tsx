@@ -1,21 +1,25 @@
+"use client";
+
 import CompareTable from "./CompareTable";
 import PricingFAQ from "./FAQ";
 import PricingCTA from "./PricingCTA";
 import PricingHero from "./PricingHero";
 import TrustBar from "./TrustBar";
+import { useBlock } from "@/lib/hooks/useSiteContent";
 
-// The old "Add-ons" strip advertised packs (essay bundles, mock bundles, offline
-// pack…) that are not products in the system — nothing could be bought. Removed
-// so the page only shows what can actually be purchased. Individually sold
-// library resources are mentioned under the comparison table.
+// Plans, prices and the comparison table come from the admin-managed plans;
+// all surrounding copy comes from the admin-managed "pricing.page" section.
+// (The old "Add-ons" strip stays removed: those packs were never purchasable.)
 const PricingPageClient = () => {
+  const { block } = useBlock("pricing.page");
+  const content = block ?? {};
   return (
     <>
-      <PricingHero />
-      <TrustBar />
+      <PricingHero content={content} />
+      <TrustBar content={content} />
       <CompareTable />
       <PricingFAQ />
-      <PricingCTA />
+      <PricingCTA content={content} />
     </>
   );
 };

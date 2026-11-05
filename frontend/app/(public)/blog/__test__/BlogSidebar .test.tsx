@@ -1,161 +1,57 @@
-import { describe, expect, vi, beforeEach, afterEach, test } from "vitest";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import BlogSidebar from "../BlogSidebar";
+import * as blogApi from "@/lib/api/blog";
 
-vi.mock("../blogData", () => ({
-  POSTS: [
-    {
-      slug: "post-1",
-      title: "How to Score 300 in JAMB",
-      excerpt: "Tips and tricks",
-      readTime: "5 min read",
-      date: "Jan 1 2025",
-      tag: "JAMB Guide",
-      category: "jamb",
-      featured: false,
-      gradientCls: "from-green-800 to-green-600",
-      author: { name: "Tolu F.", initials: "TF", role: "Educator" },
-    },
-    {
-      slug: "post-2",
-      title: "WAEC English Guide",
-      excerpt: "Master the comprehension",
-      readTime: "4 min read",
-      date: "Feb 1 2025",
-      tag: "WAEC Guide",
-      category: "waec",
-      featured: false,
-      gradientCls: "from-teal-700 to-teal-500",
-      author: { name: "Ngozi E.", initials: "NE", role: "Teacher" },
-    },
-    {
-      slug: "post-3",
-      title: "Study Science Basics",
-      excerpt: "Learn how to learn",
-      readTime: "6 min read",
-      date: "Mar 1 2025",
-      tag: "Study Tips",
-      category: "study",
-      featured: false,
-      gradientCls: "from-blue-700 to-blue-500",
-      author: { name: "Emeka A.", initials: "EA", role: "AI Education Researcher" },
-    },
-  ],
-  POPULAR_TAGS: ["JAMB", "WAEC", "Study Tips", "Post-UTME"],
-}));
+vi.mock("@/lib/api/blog", async (orig) => ({ ...(await orig<typeof import("@/lib/api/blog")>()), getPopularPosts: vi.fn() }));
 
-vi.mock("../PostCard", () => ({
-  default: ({ post }: { post: { title: string } }) => <div>{post.title}</div>,
-}));
+const cats = [
+  { id: "1", slug: "jamb", label: "JAMB Guide", sortOrder: 0, publishedAt: null },
+  { id: "2", slug: "waec", label: "WAEC Guide", sortOrder: 1, publishedAt: null },
+];
+const popular = [1, 2, 3].map((n) => ({
+  id: `p${n}`, slug: `post-${n}`, title: `Popular ${n}`, readTimeMinutes: n + 2, publishedAt: "2026-02-01T00:00:00Z", createdAt: "2026-02-01T00:00:00Z",
+})) as unknown as blogApi.BackendPost[];
 
-describe("BlogSidebar", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
+beforeEach(() => {
+  vi.resetAllMocks();
+  vi.mocked(blogApi.getPopularPosts).mockResolvedValue(popular);
+});
+
+describe("BlogSidebar (admin-managed)", () => {
+  it("lists the real most-read posts from the API, linking to each", async () => {
+    render(<BlogSidebar content={{ popularTitle: "Most Read" }} categories={[]} onPickCategory={() => {}} />);
+    const link = await screen.findByRole("link", { name: /Popular 1/ });
+    expect(link).toHaveAttribute("href", "/blog/post-1");
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
   });
 
-  afterEach(() => {
-    vi.runOnlyPendingTimers();
-    vi.useRealTimers();
+  it("renders topics from the admin's categories and reports the pick", async () => {
+    const onPick = vi.fn();
+    window.scrollTo = vi.fn();
+    render(<BlogSidebar content={{}} categories={cats} onPickCategory={onPick} />);
+    await userEvent.click(screen.getByRole("button", { name: "WAEC Guide" }));
+    expect(onPick).toHaveBeenCalledWith("waec");
   });
 
-  test("renders the newsletter heading", () => {
-    render(<BlogSidebar />);
-    expect(screen.getByText(/get study tips weekly/i)).toBeInTheDocument();
+  it("shows the promo card only when the admin configured title, label and link", () => {
+    const { rerender } = render(<BlogSidebar content={{}} categories={[]} onPickCategory={() => {}} />);
+    expect(screen.queryByRole("link", { name: "Start Free" })).toBeNull();
+    rerender(<BlogSidebar content={{ promoTitle: "Ready?", promoButtonLabel: "Start Free", promoButtonHref: "/register" }} categories={[]} onPickCategory={() => {}} />);
+    expect(screen.getByRole("link", { name: /Start Free/ })).toHaveAttribute("href", "/register");
   });
 
-  test("renders popular tags", () => {
-    render(<BlogSidebar />);
-    expect(screen.getByText("JAMB")).toBeInTheDocument();
-    expect(screen.getByText("WAEC")).toBeInTheDocument();
-    expect(screen.getByText("Study Tips")).toBeInTheDocument();
+  it("has no fake newsletter form (nothing was ever sent anywhere)", () => {
+    render(<BlogSidebar content={{ sidebarTitle: "Hi", sidebarButtonLabel: "Go", sidebarButtonHref: "/x" }} categories={[]} onPickCategory={() => {}} />);
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.queryByText(/you.re subscribed/i)).toBeNull();
   });
 
-  test("renders the top 3 most-read post titles", () => {
-    render(<BlogSidebar />);
-    expect(screen.getByText("How to Score 300 in JAMB")).toBeInTheDocument();
-    expect(screen.getByText("WAEC English Guide")).toBeInTheDocument();
-    expect(screen.getByText("Study Science Basics")).toBeInTheDocument();
-  });
-
-  test("renders the CTA card with a Start Free link", () => {
-    render(<BlogSidebar />);
-    const cta = screen.getByRole("link", { name: /start free/i });
-    expect(cta).toHaveAttribute("href", "/register");
-  });
-
-  test("does not subscribe when email is empty", () => {
-    render(<BlogSidebar />);
-
-    act(() => {
-      fireEvent.submit(screen.getByRole("button", { name: /subscribe free/i }).closest("form")!);
-    });
-
-    expect(screen.queryByText(/you're subscribed/i)).not.toBeInTheDocument();
-  });
-
-  test("does not subscribe when email is invalid", () => {
-    render(<BlogSidebar />);
-
-    act(() => {
-      fireEvent.change(screen.getByPlaceholderText(/adaeze@example\.com/i), {
-        target: { value: "notanemail" },
-      });
-      fireEvent.submit(screen.getByRole("button", { name: /subscribe free/i }).closest("form")!);
-    });
-
-    expect(screen.queryByText(/you're subscribed/i)).not.toBeInTheDocument();
-  });
-
-  test("shows loading state immediately after valid submit", () => {
-    render(<BlogSidebar />);
-
-    act(() => {
-      fireEvent.change(screen.getByPlaceholderText(/adaeze@example\.com/i), {
-        target: { value: "test@example.com" },
-      });
-      fireEvent.submit(screen.getByRole("button", { name: /subscribe free/i }).closest("form")!);
-    });
-
-    expect(screen.getByRole("button", { name: /subscribing/i })).toBeInTheDocument();
-  });
-
-  test("shows success state after the 1.2s timeout resolves", () => {
-    render(<BlogSidebar />);
-
-    act(() => {
-      fireEvent.change(screen.getByPlaceholderText(/adaeze@example\.com/i), {
-        target: { value: "test@example.com" },
-      });
-      fireEvent.submit(screen.getByRole("button", { name: /subscribe free/i }).closest("form")!);
-    });
-
-    act(() => {
-      vi.advanceTimersByTime(1199);
-    });
-    expect(screen.getByRole("button", { name: /subscribing/i })).toBeInTheDocument();
-
-    // resolved at 1200ms
-    act(() => {
-      vi.advanceTimersByTime(1);
-    });
-    expect(screen.getByText(/you're subscribed/i)).toBeInTheDocument();
-  });
-
-  test("hides the form once subscribed", () => {
-    render(<BlogSidebar />);
-
-    act(() => {
-      fireEvent.change(screen.getByPlaceholderText(/adaeze@example\.com/i), {
-        target: { value: "test@example.com" },
-      });
-      fireEvent.submit(screen.getByRole("button", { name: /subscribe free/i }).closest("form")!);
-    });
-
-    act(() => {
-      vi.advanceTimersByTime(1200);
-    });
-
-    expect(screen.queryByPlaceholderText(/adaeze@example\.com/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /subscribe/i })).not.toBeInTheDocument();
+  it("still renders when the popular-posts request fails", async () => {
+    vi.mocked(blogApi.getPopularPosts).mockRejectedValue(new Error("x"));
+    render(<BlogSidebar content={{}} categories={cats} onPickCategory={() => {}} />);
+    await waitFor(() => expect(blogApi.getPopularPosts).toHaveBeenCalled());
+    expect(screen.queryByText("Most Read")).toBeNull();
   });
 });

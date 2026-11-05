@@ -13,6 +13,7 @@ import {
   UpdatePostDto,
 } from './dto/post.dto';
 import { PaginationProvider } from 'src/common/pagination/pagination.provider';
+import { SiteContentService } from 'src/site-content/site-content.service';
 
 @Injectable()
 export class BlogService {
@@ -20,6 +21,7 @@ export class BlogService {
     @InjectRepository(Post)
     private readonly postRepo: Repository<Post>,
     private readonly paginationProvider: PaginationProvider,
+    private readonly siteContent: SiteContentService,
   ) {}
 
   // ─── PUBLIC ────────────────────────────────────────────────────────────
@@ -63,6 +65,14 @@ export class BlogService {
     return post;
   }
 
+  async findPopular(limit = 3): Promise<Post[]> {
+    return this.postRepo.find({
+      where: { isPublished: true },
+      order: { viewCount: 'DESC', publishedAt: 'DESC' },
+      take: limit,
+    });
+  }
+
   async findRelated(post: Post, limit = 3): Promise<Post[]> {
     return this.postRepo.find({
       where: { category: post.category, isPublished: true },
@@ -100,6 +110,7 @@ export class BlogService {
   async create(dto: CreatePostDto): Promise<Post> {
     const slug = dto.slug ?? this.slugify(dto.title);
     await this.ensureSlugAvailable(slug);
+    await this.siteContent.assertBlogCategoryExists(dto.category);
 
     const post = this.postRepo.create({
       ...dto,
@@ -127,7 +138,10 @@ export class BlogService {
     if (dto.title !== undefined) post.title = dto.title;
     if (dto.excerpt !== undefined) post.excerpt = dto.excerpt;
     if (dto.content !== undefined) post.content = dto.content;
-    if (dto.category !== undefined) post.category = dto.category;
+    if (dto.category !== undefined && dto.category !== post.category) {
+      await this.siteContent.assertBlogCategoryExists(dto.category);
+      post.category = dto.category;
+    }
     if (dto.tag !== undefined) post.tag = dto.tag;
     if (dto.authorName !== undefined) post.authorName = dto.authorName;
     if (dto.authorRole !== undefined) post.authorRole = dto.authorRole;

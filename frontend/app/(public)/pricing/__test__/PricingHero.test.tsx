@@ -32,7 +32,7 @@ const cards = () => screen.getAllByTestId("plan-card");
 describe("PricingHero — live plans", () => {
   it("shows a loading skeleton, and NONE of the static prices, while plans load", () => {
     state({ isLoading: true });
-    render(<PricingHero />);
+    render(<PricingHero content={{}} />);
     expect(screen.getByLabelText("Loading plans")).toBeInTheDocument();
     expect(screen.queryByText(/₦2,500/)).toBeNull();
     expect(screen.queryByText(/Student Pro/)).toBeNull();
@@ -40,7 +40,7 @@ describe("PricingHero — live plans", () => {
 
   it("renders one card per tier from the API: names, prices, admin-written features and description", () => {
     state({ data: CATALOGUE });
-    render(<PricingHero />);
+    render(<PricingHero content={{}} />);
     expect(cards()).toHaveLength(4);
     const names = cards().map((c) => within(c).getByText(/^(Free|Basic Monthly|Standard Monthly|Enterprise)$/).textContent);
     expect(names).toEqual(["Free", "Basic Monthly", "Standard Monthly", "Enterprise"]);
@@ -55,14 +55,14 @@ describe("PricingHero — live plans", () => {
 
   it("the admin's badge, not the code, decides which card is highlighted", () => {
     state({ data: CATALOGUE });
-    render(<PricingHero />);
+    render(<PricingHero content={{}} />);
     expect(screen.getAllByText("Most Popular")).toHaveLength(1);
     expect(within(cards()[2]).getByText("Most Popular")).toBeInTheDocument();
   });
 
   it("the Monthly/Annual toggle swaps plans, per-month equivalent and the billed line", async () => {
     state({ data: CATALOGUE });
-    render(<PricingHero />);
+    render(<PricingHero content={{}} />);
     expect(within(cards()[2]).getByText("Billed monthly")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /Annual/ }));
     const std = cards()[2];
@@ -76,27 +76,27 @@ describe("PricingHero — live plans", () => {
 
   it("the toggle's saving pill is computed from real prices, not hardcoded", () => {
     state({ data: CATALOGUE });
-    render(<PricingHero />);
+    render(<PricingHero content={{}} />);
     expect(screen.getByText("Save up to 20%")).toBeInTheDocument();
     expect(screen.queryByText("Save 33%")).toBeNull();
   });
 
   it("no toggle at all when the catalogue sells only one billing period", () => {
     state({ data: [FREE, BASIC, STD_M] });
-    render(<PricingHero />);
+    render(<PricingHero content={{}} />);
     expect(screen.getByRole("button", { name: /Annual/ }).closest("div.hidden")).not.toBeNull();
   });
 
   it("only-annual catalogues show annual plans without a toggle", () => {
     state({ data: [FREE, STD_A] });
-    render(<PricingHero />);
+    render(<PricingHero content={{}} />);
     expect(within(cards()[1]).getByText("Standard Annual")).toBeInTheDocument();
   });
 
   it("a running promo shows the label, discount, countdown and struck regular price", () => {
     const promo = { ...STD_M, amountKobo: 400000, listAmountKobo: 500000, isPromo: true, promoLabel: "Back to school", discountPercent: 20, promoEndsAt: inDays(3) };
     state({ data: [FREE, promo] });
-    render(<PricingHero />);
+    render(<PricingHero content={{}} />);
     const c = cards()[1];
     expect(within(c).getByText("₦4,000")).toBeInTheDocument();
     expect(within(c).getByLabelText("Regular price ₦5,000 per month")).toBeInTheDocument();
@@ -108,20 +108,20 @@ describe("PricingHero — live plans", () => {
   it("a promo that already ended on this device's clock is not shown (even if the cached response says it's live)", () => {
     const stale = { ...STD_M, amountKobo: 400000, listAmountKobo: 500000, isPromo: true, discountPercent: 20, promoEndsAt: inDays(-1) };
     state({ data: [FREE, stale] });
-    render(<PricingHero />);
+    render(<PricingHero content={{}} />);
     expect(screen.queryByText(/% off/)).toBeNull();
     expect(screen.queryByLabelText(/Regular price/)).toBeNull();
   });
 
   it("an admin price change shows up (₦6,000 → card says ₦6,000, CTA says ₦6,000/mo)", () => {
     state({ data: [FREE, { ...STD_M, amountKobo: 600000, listAmountKobo: 600000 }] });
-    render(<PricingHero />);
+    render(<PricingHero content={{}} />);
     expect(within(cards()[1]).getByRole("link", { name: "Start Standard Monthly — ₦6,000/mo" })).toBeInTheDocument();
   });
 
   it("free card links to sign-up; enterprise has no price or checkout, only a sales link", () => {
     state({ data: CATALOGUE });
-    render(<PricingHero />);
+    render(<PricingHero content={{}} />);
     expect(within(cards()[0]).getByRole("link", { name: "Get Started Free" })).toHaveAttribute("href", "/register");
     const ent = cards()[3];
     expect(within(ent).getByText("Custom")).toBeInTheDocument();
@@ -133,7 +133,7 @@ describe("PricingHero — live plans", () => {
 describe("PricingHero — when plans cannot be loaded", () => {
   it("API returned no plans: says so, and shows NO prices (never stale hard-coded ones)", () => {
     state({ data: [] });
-    render(<PricingHero />);
+    render(<PricingHero content={{}} />);
     expect(screen.getByRole("alert")).toHaveTextContent(/unavailable/i);
     expect(screen.queryByTestId("plan-card")).toBeNull();
     expect(screen.queryByText(/₦/)).toBeNull();
@@ -143,7 +143,7 @@ describe("PricingHero — when plans cannot be loaded", () => {
   it("API failed (no data, not loading): same honest message, with a retry", async () => {
     const refetch = vi.fn();
     vi.mocked(usePlans).mockReturnValue({ data: undefined, isLoading: false, refetch } as unknown as ReturnType<typeof usePlans>);
-    render(<PricingHero />);
+    render(<PricingHero content={{}} />);
     await userEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(refetch).toHaveBeenCalled();
     expect(screen.queryByText(/Student Pro/)).toBeNull();
@@ -151,7 +151,7 @@ describe("PricingHero — when plans cannot be loaded", () => {
 
   it("no billing toggle without plans", () => {
     state({ data: undefined });
-    render(<PricingHero />);
+    render(<PricingHero content={{}} />);
     expect(screen.getByRole("button", { name: /Annual/ }).closest("div.hidden")).not.toBeNull();
   });
 });
