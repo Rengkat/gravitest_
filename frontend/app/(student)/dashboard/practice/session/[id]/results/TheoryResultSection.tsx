@@ -15,6 +15,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import AIResultPanel from "@/app/(protected)/cbt/theory/components/AIResultPanel";
+import QuestionDiscussion from "@/Components/discussion/QuestionDiscussion";
 import ExplainWithAiButton from "@/Components/shared/ExplainWithAiButton";
 import MarkdownContent from "@/Components/shared/MarkdownContent";
 import { explainMcqQuestion } from "@/lib/api/aiExplain";
@@ -230,6 +231,13 @@ export default function TheoryResultSection({
                     <Sparkles size={12} aria-hidden="true" /> Not graded.
                   </p>
                 )}
+
+                {/* Under THIS part's answer, explanation and AI feedback. The server opens it once grading is released. */}
+                <QuestionDiscussion
+                  questionId={active.questionId}
+                  partId={sub.partId ?? null}
+                  label={sub.path ? `Part ${sub.label}` : undefined}
+                />
               </div>
             ))}
           </div>

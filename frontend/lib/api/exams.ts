@@ -22,6 +22,8 @@ export interface SessionQuestionPassage {
 
 // Nested theory/practical part tree (mirrors backend EssayPart). Contains no answers.
 export interface EssayPart {
+  /** Permanent id of this part (assigned server-side). Discussions attach to it. */
+  id?: string;
   label: string;
   text?: string | null;
   imageUrl?: string | null;

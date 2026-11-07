@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   IsArray,
   IsInt,
+  MaxLength,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -14,6 +15,13 @@ import {
 // fine as long as @Type(() => EssayPartDto) points back at the class
 // itself, same trick used for recursive comment trees etc.
 export class EssayPartDto {
+  // Optional: assigned by the server when absent. Accepting it lets an editor
+  // that round-trips ids keep a sub-question's discussion attached.
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  id?: string;
+
   @IsString()
   @IsNotEmpty()
   label!: string; // "1", "(a)", "(i)", "Section A" — free text, admin-authored

@@ -19,6 +19,7 @@ export type LibraryStorageFolder =
   | 'reports'
   | 'avatars'
   | 'question-images'
+  | 'discussion-images'
   | 'previews';
 
 export interface UploadResult {
@@ -50,6 +51,8 @@ const ALLOWED_MIME_TYPES: Record<LibraryStorageFolder, string[]> = {
   // editor. Same allowlist as thumbnails/avatars — this is the folder
   // the "Required Fixes" doc's image-upload items (3 & 4) post to.
   'question-images': ['image/jpeg', 'image/png', 'image/webp'],
+  // Images students attach to question discussions (diagrams, working).
+  'discussion-images': ['image/jpeg', 'image/png', 'image/webp'],
   // Server-generated free previews (LibraryPreviewProcessor) — a short
   // re-encoded clip for video/audio, or a page-truncated copy for PDFs.
   // Never client-uploaded, but validated the same way everything else
@@ -65,6 +68,7 @@ const MAX_BYTES_PER_FOLDER: Record<LibraryStorageFolder, number> = {
   reports: 50 * 1024 * 1024, // 50MB
   avatars: 5 * 1024 * 1024, // 5MB — any authenticated user can hit this endpoint, keep it tight
   'question-images': 5 * 1024 * 1024, // 5MB — diagrams/photos in questions, options, explanations, passages
+  'discussion-images': 3 * 1024 * 1024, // 3MB — student-uploaded, so kept small
   // A ~90s re-encoded clip at a modest bitrate, or a 2-5 page PDF excerpt,
   // should never legitimately be this big — a generous ceiling that still
   // catches a runaway/misconfigured preview job before it lands in R2.
@@ -146,6 +150,17 @@ export class StorageService {
       ? `.${ext.toLowerCase().replace(/[^a-z0-9]/g, '')}`
       : '';
     return `${folder}/${new Date().getUTCFullYear()}/${nanoid(16)}${safeExt}`;
+  }
+
+  /**
+   * True only for a URL this service itself issued for `folder`. Lets other
+   * modules accept an image URL from a client without trusting an arbitrary
+   * link (tracking pixels, hotlinked content, javascript: and data: URLs).
+   */
+  isOwnedUrl(url: string, folder: LibraryStorageFolder): boolean {
+    if (typeof url !== 'string' || url.includes('..') || /\s/.test(url)) return false;
+    const base = this.conf.publicBaseUrl?.replace(/\/$/, '');
+    return base ? url.startsWith(`${base}/${folder}/`) : url.startsWith(`${folder}/`);
   }
 
   private publicUrlFor(key: string): string {

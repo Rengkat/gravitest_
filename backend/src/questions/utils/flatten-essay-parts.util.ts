@@ -1,6 +1,8 @@
 import { EssayPart } from '../types/essay-part.interface';
 
 export interface EssayLeaf {
+  /** Permanent id of this part (null only for legacy structures not yet backfilled). */
+  id: string | null;
   /** Dot-joined labels from the root, e.g. "1.(a).(i)". Stable key for a leaf. */
   path: string;
   label: string;
@@ -32,6 +34,7 @@ export function flattenEssayParts(
       leaves.push(...flattenEssayParts(part.children, path, ctx));
     } else {
       leaves.push({
+        id: part.id ?? null,
         path,
         label: part.label,
         text: part.text ?? '',

@@ -20,6 +20,7 @@ import LinedCanvas from "./LinedCanvas";
 import GraphCanvas from "./GraphCanvas";
 import ConstructionCanvas from "./ConstructionCanvas";
 import AIResultPanel from "./AIResultPanel";
+import QuestionDiscussion from "@/Components/discussion/QuestionDiscussion";
 import Image from "next/image";
 
 export default function SubQuestionAnswer({
@@ -396,6 +397,15 @@ export default function SubQuestionAnswer({
               mode={mode}
             />
           )}
+
+          {/* Practice only: opens once THIS part has been graded (the server enforces it too). Never in an exam. */}
+          {aiResult && mode === "practice" && (
+            <QuestionDiscussion
+              questionId={subQuestion.questionId}
+              partId={subQuestion.partId ?? null}
+              label={subQuestion.path ? `Part ${subQuestion.label}` : undefined}
+            />
+          )}
         </div>
       )}
 
@@ -409,6 +419,12 @@ export default function SubQuestionAnswer({
             onToggleSolution={onToggleSolution}
             onElaborated={(detail) => onElaborated(subQuestion.id, detail)}
             mode={mode}
+          />
+          {/* After submission the server decides: it opens only once grading/correction has been released. */}
+          <QuestionDiscussion
+            questionId={subQuestion.questionId}
+            partId={subQuestion.partId ?? null}
+            label={subQuestion.path ? `Part ${subQuestion.label}` : undefined}
           />
         </div>
       )}

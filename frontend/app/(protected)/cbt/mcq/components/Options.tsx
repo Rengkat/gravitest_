@@ -6,6 +6,7 @@ import Image from "next/image";
 import MarkdownContent from "@/Components/shared/MarkdownContent";
 import ExplainWithAiButton from "@/Components/shared/ExplainWithAiButton";
 import { explainMcqQuestion } from "@/lib/api/aiExplain";
+import QuestionDiscussion from "@/Components/discussion/QuestionDiscussion";
 
 export interface McqFeedback {
   /** What the student chose when they checked. */
@@ -174,6 +175,13 @@ const Options = ({
             questionText={currentQuestion.text}
             request={requestExplanation}
             label={currentQuestion.explanation ? "Explain more with Sabi" : "Explain with Sabi"}
+          />
+
+          {/* Only inside `showReveal` (practice, after the student has checked this question). Independent of the AI
+              explanation above, and keyed by the underlying question so each question shows only its own thread. */}
+          <QuestionDiscussion
+            key={`discussion-${currentQuestion.questionId ?? currentQuestion.id}`}
+            questionId={currentQuestion.questionId}
           />
         </div>
       )}

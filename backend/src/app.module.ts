@@ -35,6 +35,7 @@ import { EntitlementsModule } from './entitlements/entitlements.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { BlogModule } from './blog/blog.module';
 import { SiteContentModule } from './site-content/site-content.module';
+import { DiscussionsModule } from './discussions/discussions.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { AiModule } from './ai/ai.module';
 import { ExamsModule } from './exams/exams.module';
@@ -251,6 +252,7 @@ const ENV = process.env.NODE_ENV;
     TransactionsModule,
     BlogModule,
     SiteContentModule,
+    DiscussionsModule,
     EventEmitterModule.forRoot(),
     SubscriptionsModule,
     UserBillingModule,

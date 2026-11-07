@@ -3,6 +3,13 @@ import Options from "../components/Options";
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import type { Question } from "@/lib/constants/mcq";
 
+// The discussion has its own test suite; here we only verify WHERE and WHEN it is rendered.
+vi.mock("@/Components/discussion/QuestionDiscussion", () => ({
+  default: (p: { questionId?: string; partId?: string | null }) => (
+    <div data-testid="discussion" data-question={p.questionId ?? ""} data-part={p.partId ?? ""} />
+  ),
+}));
+
 const mockQuestion: Question = {
   id: 5,
   subjectId: "mathematics",
@@ -152,6 +159,32 @@ describe("Options — practice mode", () => {
     );
     expect(screen.getByText(/no explanation is stored/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^explain with sabi$/i })).toBeInTheDocument();
+  });
+
+  test("the discussion appears only after the reveal, below the explanation and the Sabi button, for THIS question", () => {
+    const { rerender } = render(<Options {...practice} currentQuestion={q} currentSelectedOption="B" />);
+    expect(screen.queryByTestId("discussion")).not.toBeInTheDocument(); // before checking: nothing
+
+    rerender(
+      <Options
+        {...practice}
+        currentQuestion={q}
+        currentSelectedOption="B"
+        feedback={{ selectedLabel: "B", correctLabel: "C", isCorrect: false }}
+      />,
+    );
+    const discussion = screen.getByTestId("discussion");
+    expect(discussion).toHaveAttribute("data-question", "q-5"); // the underlying question id, not a position
+    const sabi = screen.getByRole("button", { name: /explain more with sabi/i });
+    expect(sabi.compareDocumentPosition(discussion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  test("Exam mode never renders the discussion, even if feedback is passed by mistake", () => {
+    render(
+      <Options {...defaultProps} currentQuestion={q} mode="exam" currentSelectedOption="B"
+        feedback={{ selectedLabel: "B", correctLabel: "C", isCorrect: false }} />,
+    );
+    expect(screen.queryByTestId("discussion")).not.toBeInTheDocument();
   });
 
   test("Exam mode never renders feedback or Check Answer, even if feedback is passed by mistake", () => {

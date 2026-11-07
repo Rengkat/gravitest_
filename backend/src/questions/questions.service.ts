@@ -11,6 +11,7 @@ import {
   UpdateQuestionDto,
 } from './dto/update-question.dto';
 import { Question } from './entities/question.entity';
+import { assignPartIds } from './utils/assign-part-ids.util';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { QuestionAnswer } from './entities/question-answer.entity';
@@ -68,7 +69,7 @@ export class QuestionsService {
         topic: dto.topic ?? null,
         maxScore: dto.maxScore ?? 10,
         modelAnswer: dto.modelAnswer ?? null,
-        structure: dto.structure ?? null,
+        structure: assignPartIds(dto.structure) ?? null,
         isActive: dto.isActive ?? false, // default draft until published
         passageId: dto.passageId ?? null,
       });
@@ -237,8 +238,15 @@ export class QuestionsService {
         coreFields.questionNumber = dto.questionNumber ?? null;
       if (dto.passageId !== undefined)
         coreFields.passageId = dto.passageId ?? null;
-      if (dto.structure !== undefined)
-        coreFields.structure = dto.structure ?? null;
+      if (dto.structure !== undefined) {
+        // Keep each part's permanent id (and therefore its discussion thread)
+        // across edits — see assignPartIds.
+        const existing = await manager.findOne(Question, {
+          where: { id },
+          select: { id: true, structure: true },
+        });
+        coreFields.structure = assignPartIds(dto.structure, existing?.structure) ?? null;
+      }
 
       await manager.update(Question, id, coreFields);
 

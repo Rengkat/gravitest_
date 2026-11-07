@@ -6,6 +6,7 @@ import { Question } from "@/lib/constants/mcq";
 import { McqSubject } from "@/lib/session/deriveMcqSubjects";
 import MarkdownContent from "@/Components/shared/MarkdownContent";
 import ExplainWithAiButton from "@/Components/shared/ExplainWithAiButton";
+import QuestionDiscussion from "@/Components/discussion/QuestionDiscussion";
 import { explainMcqQuestion } from "@/lib/api/aiExplain";
 
 export interface McqSubjectResult {
@@ -170,6 +171,13 @@ export default function McqResultSection({ showScores, correct, total, percentag
               />
             </div>
           )}
+
+          {/* Below the answer, explanation and AI help — a separate component with its own state, so explaining with AI never resets it. Keyed per question so each question shows only its own thread. */}
+          <QuestionDiscussion
+            key={`discussion-${activeData.question.questionId ?? activeKey}`}
+            questionId={activeData.question.questionId}
+            label={`Question ${activeData.index + 1}`}
+          />
         </div>
       )}
     </section>

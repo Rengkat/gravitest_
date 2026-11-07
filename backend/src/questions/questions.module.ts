@@ -9,12 +9,13 @@ import { Passage } from './entities/passage.entity';
 import { PassagesService } from './passages.service';
 import { PassagesController } from './passages.controller';
 import { BulkImportParserProvider } from './providers/bulk-import-parser.provider';
+import { PartIdBackfillService } from './part-id-backfill.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { PaginationModule } from 'src/common/pagination/pagination.module';
 
 @Module({
   controllers: [QuestionsController, PassagesController],
-  providers: [QuestionsService, PassagesService, BulkImportParserProvider],
+  providers: [QuestionsService, PassagesService, BulkImportParserProvider, PartIdBackfillService],
   imports: [
     TypeOrmModule.forFeature([
       Question,

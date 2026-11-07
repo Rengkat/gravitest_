@@ -11,6 +11,12 @@ vi.mock("../ConstructionCanvas", () => ({
   default: () => <div data-testid="construction-canvas" />,
 }));
 
+vi.mock("@/Components/discussion/QuestionDiscussion", () => ({
+  default: (p: { questionId?: string; partId?: string | null }) => (
+    <div data-testid="discussion" data-question={p.questionId ?? ""} data-part={p.partId ?? ""} />
+  ),
+}));
+
 vi.mock("../AIResultPanel", () => ({
   default: ({ result, onToggleSolution }: { result: AIResult; onToggleSolution: () => void }) => (
     <div data-testid="ai-result-panel">
@@ -476,5 +482,38 @@ describe("after submission", () => {
   test("offers no grading button once submitted", () => {
     renderComponent({ isSubmitted: true, mode: "practice" });
     expect(screen.queryByRole("button", { name: /check answer/i })).not.toBeInTheDocument();
+  });
+});
+
+// ════════════════════════════════════════════════════════════════
+// 9. DISCUSSION placement (per sub-question, never during an exam)
+// ════════════════════════════════════════════════════════════════
+
+describe("discussion", () => {
+  const part = { ...mockSubQuestion, questionId: "q-1", partId: "part-a-id" };
+
+  test("practice: appears under THIS part's AI result, bound to the question and the part's permanent id", () => {
+    renderComponent({ subQuestion: part, mode: "practice", aiResult: mockAIResult, hasAnswer: true });
+    const discussion = screen.getByTestId("discussion");
+    expect(discussion).toHaveAttribute("data-question", "q-1");
+    expect(discussion).toHaveAttribute("data-part", "part-a-id");
+    // (The panel is found by its role: the file's "../AIResultPanel" mock points at the wrong path, so the real one renders.)
+    const panel = screen.getByRole("region", { name: /AI assessment/i });
+    expect(panel.compareDocumentPosition(discussion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  test("practice: not shown before this part has been graded", () => {
+    renderComponent({ subQuestion: part, mode: "practice", hasAnswer: true });
+    expect(screen.queryByTestId("discussion")).not.toBeInTheDocument();
+  });
+
+  test("exam mode: never shown while the exam is in progress, even with a result attached", () => {
+    renderComponent({ subQuestion: part, mode: "exam", isSubmitted: false, aiResult: mockAIResult, hasAnswer: true });
+    expect(screen.queryByTestId("discussion")).not.toBeInTheDocument();
+  });
+
+  test("after submission it is rendered (the server then decides whether grading has been released)", () => {
+    renderComponent({ subQuestion: part, mode: "exam", isSubmitted: true, aiResult: mockAIResult });
+    expect(screen.getByTestId("discussion")).toHaveAttribute("data-part", "part-a-id");
   });
 });

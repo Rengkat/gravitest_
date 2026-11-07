@@ -18,6 +18,10 @@ export type SubQuestion = {
   // The real backend session-question row. Every part of one nested
   // question shares it; answers are submitted/scored per row.
   sessionQuestionId: string;
+  // The underlying question (not the session row) — what a discussion is attached to.
+  questionId?: string;
+  // Permanent id of this part within the question; undefined for a plain, non-nested question.
+  partId?: string;
   // Dot-path within the question's `structure` ("" for a plain,
   // non-nested question). Sent to the backend as partAnswers[].path.
   path: string;

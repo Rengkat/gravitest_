@@ -12,6 +12,7 @@ type Heading = { label: string; text?: string };
 function flattenParts(
   parts: EssayPart[],
   sessionQuestionId: string,
+  questionId: string | undefined,
   parentPath = "",
   trail: Heading[] = [],
 ): SubQuestion[] {
@@ -20,7 +21,7 @@ function flattenParts(
     const path = parentPath ? `${parentPath}.${part.label}` : part.label;
     if (part.children?.length) {
       leaves.push(
-        ...flattenParts(part.children, sessionQuestionId, path, [
+        ...flattenParts(part.children, sessionQuestionId, questionId, path, [
           ...trail,
           { label: part.label, text: part.text ?? undefined },
         ]),
@@ -29,6 +30,10 @@ function flattenParts(
       leaves.push({
         id: `${sessionQuestionId}__${path}`,
         sessionQuestionId,
+        // Discussions attach to these two — the underlying question and the part's permanent id —
+        // never to the session row, its position or the display label.
+        questionId,
+        partId: part.id,
         path,
         headingTrail: trail,
         label: part.label,
@@ -52,7 +57,7 @@ export function groupTheoryQuestions(dtos: SessionQuestionDto[]): LegacyTheoryQu
   return dtos.map((dto, i): LegacyTheoryQuestion => {
     const number = dto.questionNumber || String(i + 1);
     const structured = !!dto.structure?.length;
-    const parts = structured ? flattenParts(dto.structure!, dto.sessionQuestionId) : [];
+    const parts = structured ? flattenParts(dto.structure!, dto.sessionQuestionId, dto.id) : [];
     // A structure that flattens to nothing (all headings) falls back to plain
     const useStructure = parts.length > 0;
 
@@ -67,6 +72,7 @@ export function groupTheoryQuestions(dtos: SessionQuestionDto[]): LegacyTheoryQu
             {
               id: `${dto.sessionQuestionId}__root`,
               sessionQuestionId: dto.sessionQuestionId,
+              questionId: dto.id,
               path: "",
               headingTrail: [],
               label: `${number}.`,
