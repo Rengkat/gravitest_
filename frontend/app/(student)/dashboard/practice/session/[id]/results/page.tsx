@@ -79,7 +79,7 @@ export default function PracticeResultsPage() {
       questions: items.map((item, i) => ({
         id: i,
         text: item.question.questionText ?? "",
-        options: (item.question.options ?? []).slice().sort((a, b) => a.order - b.order).map((o) => o.text),
+        options: (item.question.options ?? []).slice().sort((a, b) => a.order - b.order).map((o) => ({ label: o.label, text: o.text, imageUrl: o.imageUrl })),
         correctAnswer: item.question.correctLabel ?? "",
         explanation: item.question.explanations?.[0]?.text,
         subjectId,

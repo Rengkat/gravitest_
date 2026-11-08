@@ -119,3 +119,43 @@ describe("LeftQuestion", () => {
     expect(screen.getByTestId("diagram-container")).toBeInTheDocument();
   });
 });
+
+// ── Images and maths (shared renderers) ─────────────────
+
+describe("LeftQuestion — diagram and equations", () => {
+  const withImage = (over: Partial<Question> = {}): Question => ({
+    ...mockQuestion,
+    questionImageUrl: "https://pub.example.r2.dev/q/angles.jpg",
+    ...over,
+  });
+
+  test("the diagram sits flush in the question: full width, no frame or tinted wrapper around it", () => {
+    render(<LeftQuestion {...defaultProps} currentQuestion={withImage()} />);
+    const figure = screen.getByTestId("question-image");
+    const img = screen.getByRole("img", { name: "Question diagram" });
+    expect(img.className).toMatch(/(^|\s)w-full(\s|$)/);
+    expect(img.className).toMatch(/object-contain/);
+    expect(figure.className).not.toMatch(/\bborder/);
+    const wrapper = screen.getByTestId("question-image-container");
+    expect(wrapper.className).not.toMatch(/\bborder/);
+    expect(wrapper.className).not.toMatch(/\bbg-/); // no contrasting container background
+    expect(wrapper.className).not.toMatch(/\bp-\d/); // no uniform padding box around the image
+  });
+
+  test("a question without an image renders no image container", () => {
+    render(<LeftQuestion {...defaultProps} currentQuestion={mockQuestion} />);
+    expect(screen.queryByTestId("question-image")).toBeNull();
+  });
+
+  test("the reported expression is typeset as a fraction, with the rest of the sentence intact", () => {
+    render(
+      <LeftQuestion
+        {...defaultProps}
+        currentQuestion={{ ...mockQuestion, text: "The expression (5x + 3)/[6x(x + 1)] will be undefined when x equals" }}
+      />,
+    );
+    const region = screen.getByRole("region", { name: /Question 2 of 5/ });
+    expect(region.querySelector(".katex .mfrac")).not.toBeNull();
+    expect(region.textContent).toContain("will be undefined when x equals");
+  });
+});

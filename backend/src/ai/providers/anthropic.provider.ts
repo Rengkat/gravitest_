@@ -4,8 +4,20 @@ import {
   AiCompletionResult,
   AiProvider,
   AiStreamChunk,
-  extractText,
+  AiContentPart,
 } from '../interfaces/ai-provider.interface';
+
+/** Claude's Messages API takes image blocks (base64 or URL) next to text blocks. */
+export function toAnthropicContent(content: string | AiContentPart[]) {
+  if (typeof content === 'string') return content;
+  return content.map((p) =>
+    p.type === 'text'
+      ? { type: 'text' as const, text: p.text }
+      : p.type === 'image_data'
+        ? { type: 'image' as const, source: { type: 'base64' as const, media_type: p.mimeType, data: p.data } }
+        : { type: 'image' as const, source: { type: 'url' as const, url: p.imageUrl } },
+  );
+}
 
 @Injectable()
 export class AnthropicProvider implements AiProvider {
@@ -28,12 +40,7 @@ export class AnthropicProvider implements AiProvider {
           : params.systemPrompt,
         max_tokens: params.maxTokens ?? 1500,
         temperature: params.temperature ?? 0.7,
-        // Text-only here — Claude's Messages API does support real vision
-        // (base64 image blocks), just not wired up since Gemini is the
-        // designated vision provider per the product's AI stack. Add it
-        // here the same way GoogleProvider.toGeminiParts works if you
-        // want Claude as a vision fallback too.
-        messages: params.messages.map((m) => ({ role: m.role, content: extractText(m.content) })),
+        messages: params.messages.map((m) => ({ role: m.role, content: toAnthropicContent(m.content) })),
       }),
     });
 
@@ -66,12 +73,7 @@ export class AnthropicProvider implements AiProvider {
         system: params.systemPrompt,
         max_tokens: params.maxTokens ?? 1500,
         temperature: params.temperature ?? 0.7,
-        // Text-only here — Claude's Messages API does support real vision
-        // (base64 image blocks), just not wired up since Gemini is the
-        // designated vision provider per the product's AI stack. Add it
-        // here the same way GoogleProvider.toGeminiParts works if you
-        // want Claude as a vision fallback too.
-        messages: params.messages.map((m) => ({ role: m.role, content: extractText(m.content) })),
+        messages: params.messages.map((m) => ({ role: m.role, content: toAnthropicContent(m.content) })),
         stream: true,
       }),
     });

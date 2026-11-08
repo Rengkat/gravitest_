@@ -1,6 +1,11 @@
 export type AiContentPart =
   | { type: 'text'; text: string }
-  | { type: 'image_url'; imageUrl: string };
+  // A link the PROVIDER (or this server) will fetch. Prefer image_data for anything that must be reliable.
+  | { type: 'image_url'; imageUrl: string }
+  // Image bytes already fetched and validated by this server (AiImageService), base64-encoded.
+  // Providers send these inline, so they never depend on a second fetch of a possibly
+  // private/expiring URL, and no storage credentials ever reach a third party.
+  | { type: 'image_data'; mimeType: string; data: string };
 
 export interface AiChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -24,6 +29,11 @@ export interface AiCompletionParams {
   // (used by essay scoring). Providers that don't have a native mode
   // fall back to prompt-level instruction only.
   jsonMode?: boolean;
+}
+
+/** True when a message carries at least one image. */
+export function hasImageParts(content: string | AiContentPart[]): boolean {
+  return typeof content !== 'string' && content.some((p) => p.type !== 'text');
 }
 
 /** Text-only providers use this to degrade gracefully when a message contains image parts. */

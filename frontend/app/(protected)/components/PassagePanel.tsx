@@ -1,5 +1,6 @@
-import Image from "next/image";
 import { BookOpen } from "lucide-react";
+import MathText from "@/Components/content/MathText";
+import QuestionImage from "@/Components/content/QuestionImage";
 
 export interface PassageData {
   title?: string | null;
@@ -29,22 +30,14 @@ export default function PassagePanel({ passage }: { passage?: PassageData | null
         </span>
       </div>
       {passage.instructions && (
-        <p className="text-[13px] text-amber-800/80 italic mb-3">{passage.instructions}</p>
+        <MathText as="p" text={passage.instructions} className="mb-3 block text-[13px] text-amber-800/80 italic" />
       )}
       {passage.passageText && (
-        <p className="text-[14px] text-gray-700 leading-relaxed whitespace-pre-wrap">
-          {passage.passageText}
-        </p>
+        <MathText as="p" text={passage.passageText} className="block text-[14px] text-gray-700 leading-relaxed" />
       )}
       {passage.passageImageUrl && (
         <div className="mt-3">
-          <Image
-            src={passage.passageImageUrl}
-            width={600}
-            height={400}
-            alt={passage.title || "Passage diagram"}
-            className="max-w-full rounded-lg border border-gray-200 max-h-80 object-contain"
-          />
+          <QuestionImage src={passage.passageImageUrl} alt={passage.title || "Passage diagram"} />
         </div>
       )}
     </div>

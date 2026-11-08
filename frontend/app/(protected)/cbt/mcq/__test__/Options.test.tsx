@@ -202,3 +202,72 @@ describe("Options — practice mode", () => {
     expect(screen.queryByRole("button", { name: /check answer/i })).not.toBeInTheDocument();
   });
 });
+
+// ── Equations and images inside options / explanations ──────────────────
+
+describe("Options — equations and images", () => {
+  const mathQuestion: Question = {
+    ...mockQuestion,
+    text: "Which is the simplest form?",
+    options: [
+      { label: "A", text: "(x + 1)/(x - 1)" },
+      { label: "B", text: "\\(\\sqrt{b^2-4ac}\\)" },
+      { label: "C", text: "x^2 + 1" },
+      { label: "D", text: "2H_2 + O_2 → 2H_2O" },
+    ],
+  };
+
+  test("maths inside answer options is typeset (fractions, roots, powers, chemical equations)", () => {
+    const { container } = render(<Options {...defaultProps} currentQuestion={mathQuestion} />);
+    expect(container.querySelector(".mfrac")).not.toBeNull(); // A
+    expect(container.querySelector(".katex-mathml msqrt")).not.toBeNull(); // B
+    expect(container.querySelectorAll(".katex").length).toBeGreaterThanOrEqual(4);
+  });
+
+  test("an option stays selectable and keeps its accessible text when it contains maths", () => {
+    const select = vi.fn();
+    render(<Options {...defaultProps} currentQuestion={mathQuestion} handleSelectOption={select} />);
+    fireEvent.click(screen.getAllByRole("radio")[0]);
+    expect(select).toHaveBeenCalledWith("A");
+  });
+
+  test("an option that is an image uses the shared image component (flush, contained, white paper)", () => {
+    const q: Question = {
+      ...mockQuestion,
+      options: [{ label: "A", text: "", imageUrl: "https://pub.example.r2.dev/o/a.png" }, { label: "B", text: "plain" }],
+    };
+    render(<Options {...defaultProps} currentQuestion={q} />);
+    const figure = screen.getByTestId("question-image");
+    expect(figure.className).not.toMatch(/\bborder/);
+    expect(screen.getByRole("img", { name: "Option A" }).className).toMatch(/object-contain/);
+  });
+
+  test("the stored explanation shown after checking is typeset too", () => {
+    const q: Question = {
+      ...mockQuestion,
+      sessionQuestionId: "sq-5",
+      questionId: "q-5",
+      explanation: "Use a^2 + b^2 = c^2, so the ratio is (a + b)/(c + d).",
+    };
+    const { container } = render(
+      <Options
+        {...defaultProps}
+        mode="practice"
+        onCheckAnswer={vi.fn()}
+        currentQuestion={q}
+        currentSelectedOption="B"
+        feedback={{ selectedLabel: "B", correctLabel: "C", isCorrect: false }}
+      />,
+    );
+    expect(container.querySelector(".mfrac")).not.toBeNull();
+    expect(container.querySelectorAll(".katex").length).toBeGreaterThanOrEqual(2);
+    // The reveal still contains the explanation text and the discussion, in the right order.
+    expect(screen.getByTestId("discussion")).toBeInTheDocument();
+  });
+
+  test("plain text-only options are unchanged", () => {
+    render(<Options {...defaultProps} />);
+    expect(screen.getByText("1/4")).toBeInTheDocument();
+    expect(screen.queryByTestId("question-image")).toBeNull();
+  });
+});

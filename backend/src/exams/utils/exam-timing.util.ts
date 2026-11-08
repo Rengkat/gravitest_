@@ -36,3 +36,18 @@ export function isPastDeadline(
   if (deadline === null) return false;
   return nowMs > deadline + graceSeconds * 1000;
 }
+
+/** An untimed exam abandoned for longer than this no longer counts as "being sat". */
+export const UNTIMED_LIVE_WINDOW_HOURS = 12;
+
+/**
+ * Is a mock (exam-mode) session that is still IN_PROGRESS genuinely being sat right now?
+ * A timed exam is live until its deadline + grace; an untimed one for a bounded window.
+ * Used by every answer-revealing feature (AI explanations, discussions) so a long-abandoned
+ * exam can never lock a student out of them forever.
+ */
+export function isWithinLiveExamWindow(session: TimingInput, nowMs: number): boolean {
+  const deadline = getDeadlineMs(session);
+  if (deadline !== null) return nowMs <= deadline + SUBMIT_GRACE_SECONDS * 1000;
+  return nowMs - new Date(session.startedAt).getTime() < UNTIMED_LIVE_WINDOW_HOURS * 3600_000;
+}

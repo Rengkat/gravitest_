@@ -5,7 +5,8 @@ import { AIResult, ExamMode } from "@/types/examsTypes";
 import { BookOpen, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { elaborateEssayScore } from "@/lib/api/aiScoring";
 import ExplainWithAiButton from "@/Components/shared/ExplainWithAiButton";
-import MarkdownContent from "@/Components/shared/MarkdownContent";
+import RichContent from "@/Components/content/RichContent";
+import MathText from "@/Components/content/MathText";
 
 /**
  * Feedback for ONE graded part: score, AI feedback (strengths / weaknesses /
@@ -76,7 +77,7 @@ export default function AIResultPanel({
           </p>
         )}
 
-        {result.feedback && <p className="text-sm text-gray-800 leading-relaxed">{result.feedback}</p>}
+        {result.feedback && <RichContent text={result.feedback} className="!text-sm !leading-relaxed" />}
 
         {result.strengths?.length > 0 && (
           <div>
@@ -85,7 +86,7 @@ export default function AIResultPanel({
               {result.strengths.map((s, i) => (
                 <li key={i} className="flex gap-2 text-[13px] text-gray-700">
                   <span className="text-green-700 mt-0.5 shrink-0" aria-hidden="true">✓</span>
-                  {s}
+                  <MathText text={s} legacyMath={false} />
                 </li>
               ))}
             </ul>
@@ -101,7 +102,7 @@ export default function AIResultPanel({
               {result.improvements.map((s, i) => (
                 <li key={i} className="flex gap-2 text-[13px] text-gray-700">
                   <span className="text-orange-600 mt-0.5 shrink-0" aria-hidden="true">→</span>
-                  {s}
+                  <MathText text={s} legacyMath={false} />
                 </li>
               ))}
             </ul>
@@ -114,7 +115,7 @@ export default function AIResultPanel({
             <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-green-900">
               <Sparkles size={12} aria-hidden="true" /> Explanation
             </p>
-            <MarkdownContent text={result.explanation} className="!text-[13px] !leading-relaxed" />
+            <RichContent text={result.explanation} legacyMath className="!text-[13px] !leading-relaxed" />
           </div>
         )}
 
@@ -142,7 +143,7 @@ export default function AIResultPanel({
                 <p className="text-[11px] font-bold text-green-900 uppercase tracking-wide mb-1.5">
                   Model Answer / Mark Scheme
                 </p>
-                <MarkdownContent text={mark} className="!text-[13px] !leading-relaxed" />
+                <RichContent text={mark} legacyMath className="!text-[13px] !leading-relaxed" />
               </div>
             )}
           </div>

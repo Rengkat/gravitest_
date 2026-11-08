@@ -1,5 +1,7 @@
 import {
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Inject,
   Injectable,
   Logger,
@@ -13,6 +15,8 @@ import { DataSource, IsNull, Repository } from 'typeorm';
 import { AiExplanationCache } from './entities/ai-explanation-cache.entity';
 import { AiRouterService } from './ai-router.service';
 import { AiPromptService } from './ai-prompt.service';
+import { AiImageError, AiImageService, type LoadedImage } from './ai-image.service';
+import type { AiContentPart } from './interfaces/ai-provider.interface';
 import { AiRateLimitService } from './ai-rate-limit.service';
 import { ExplainQuestionDto } from './dto/explain-question.dto';
 import { QuestionsService } from 'src/questions/questions.service';
@@ -40,6 +44,7 @@ export class AiExplainService {
     private readonly promptService: AiPromptService,
     private readonly rateLimitService: AiRateLimitService,
     private readonly questionsService: QuestionsService,
+    private readonly images: AiImageService,
     private readonly dataSource: DataSource,
 
     // Optional: without Redis the only effect is that re-opening an
@@ -50,7 +55,7 @@ export class AiExplainService {
   async explain(
     userId: string,
     dto: ExplainQuestionDto,
-  ): Promise<{ explanation: string; cached: boolean }> {
+  ): Promise<{ explanation: string; cached: boolean; usedImages: number }> {
     const detailLevel = dto.detailLevel ?? 'standard';
 
     // 0. SERVER-SIDE ANSWER-REVEAL GUARD. An explanation states the correct
@@ -73,91 +78,144 @@ export class AiExplainService {
     );
     if (!alreadyUnlocked) await this.markUnlocked(unlockKey);
 
-    // 2. Shared cache — costs nothing, so no token/request limits apply.
-    const cached = await this.cacheRepository.findOne({
+    const question = await this.questionsService.findOne(dto.questionId);
+    if (!question) throw new NotFoundException('Question not found.');
+
+    // Every image the model must see to understand this question (question diagram, passage diagram,
+    // image options, explanation diagram). Empty for ordinary text questions.
+    let imageRefs;
+    try {
+      imageRefs = this.images.collectQuestionImages(question);
+    } catch (err) {
+      throw this.imageProblem(err, dto.questionId);
+    }
+    const needsVision = imageRefs.length > 0;
+
+    // 2. Shared cache — costs nothing, so no token/request limits apply. An explanation for a question with
+    //    images is only reusable if it was generated WITH those images: rows written before vision was
+    //    enforced (or by a text-only fallback) were produced without seeing the diagram and are regenerated.
+    const cachedRow = await this.cacheRepository.findOne({
       where: {
         questionId: dto.questionId,
         studentAnswerLabel: dto.studentAnswerLabel ?? IsNull(),
         detailLevel,
       },
     });
-    if (cached) {
-      cached.hitCount += 1;
-      await this.cacheRepository.save(cached);
-      return { explanation: cached.explanation, cached: true };
+    if (cachedRow && (!needsVision || cachedRow.visionUsed)) {
+      cachedRow.hitCount += 1;
+      await this.cacheRepository.save(cachedRow);
+      return { explanation: cachedRow.explanation, cached: true, usedImages: needsVision ? imageRefs.length : 0 };
     }
 
     // 3. Cache miss = a real AI call: enforce the per-tier request/token caps.
     await this.rateLimitService.assertWithinLimits(userId);
 
-    const question = await this.questionsService.findOne(dto.questionId);
-    if (!question) throw new NotFoundException('Question not found.');
-
-    const basePrompt = await this.promptService.getActivePrompt(
-      AIFeature.SABI_EXPLAIN,
-    );
-    const userContent = this.buildUserContent(
-      question,
-      dto.studentAnswerLabel,
-      detailLevel,
-    );
-
-    // If the question has a diagram, the model must actually SEE it — a bare
-    // URL in the prompt is not an image. Try real vision first; if no vision
-    // model/image is reachable, fall back to text-only and say so explicitly so
-    // the model does not pretend to have inspected the figure.
-    const imageUrl: string | null = question.questionImageUrl ?? null;
-    let result;
-    if (imageUrl) {
+    // 4. Fetch the REAL image bytes. A failure here is reported — never worked around by explaining the
+    //    question as if the diagram were not there.
+    let loaded: LoadedImage[] = [];
+    if (needsVision) {
       try {
-        result = await this.router.complete({
-          feature: AIFeature.SABI_EXPLAIN,
-          userId,
-          systemPrompt: basePrompt,
-          messages: [
-            {
-              role: 'user',
-              content: [
-                { type: 'text', text: userContent },
-                { type: 'image_url', imageUrl },
-              ],
-            },
-          ],
-          relatedEntityType: 'explanation',
-          relatedEntityId: dto.questionId,
-          requiresVision: true,
-        });
+        loaded = await this.images.loadAll(imageRefs);
       } catch (err) {
-        this.logger.warn(
-          `Vision explain failed for question ${dto.questionId}, retrying text-only: ${(err as Error).message}`,
-        );
+        throw this.imageProblem(err, dto.questionId);
       }
     }
-    if (!result) {
-      const note = imageUrl
-        ? '\n\nNOTE: this question has a diagram that you cannot see. Rely only on the question text and the explanation on file; do not describe or invent details of the diagram.'
-        : '';
+
+    const basePrompt = await this.promptService.getActivePrompt(AIFeature.SABI_EXPLAIN);
+    const userText = this.buildUserContent(question, dto.studentAnswerLabel, detailLevel, loaded);
+
+    let result;
+    try {
       result = await this.router.complete({
         feature: AIFeature.SABI_EXPLAIN,
         userId,
         systemPrompt: basePrompt,
-        messages: [{ role: 'user', content: userContent + note }],
+        messages: [
+          {
+            role: 'user',
+            content: needsVision ? this.withImages(userText, loaded) : userText,
+          },
+        ],
         relatedEntityType: 'explanation',
         relatedEntityId: dto.questionId,
+        requiresVision: needsVision,
       });
+    } catch (err) {
+      // The technical detail (provider status, body, model id) is for the logs; the student gets a short,
+      // retryable message and keeps their answer and place.
+      this.logger.error(
+        `Explain failed for question ${dto.questionId} (vision=${needsVision}, images=${loaded.length}): ${(err as Error).message}`,
+        (err as Error).stack,
+      );
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.SERVICE_UNAVAILABLE,
+          code: 'ai_unavailable',
+          retryable: true,
+          message: needsVision
+            ? "Sabi couldn't study this diagram just now. Your answer is saved — please try again."
+            : "Sabi couldn't prepare this explanation just now. Your answer is saved — please try again.",
+        },
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
     }
 
-    const cacheRow = this.cacheRepository.create({
-      questionId: dto.questionId,
-      studentAnswerLabel: dto.studentAnswerLabel ?? null,
-      detailLevel,
-      explanation: result.text,
-      modelId: result.modelConfig.modelId,
-      hitCount: 1,
-    });
-    await this.cacheRepository.save(cacheRow);
+    if (cachedRow) {
+      // Replace the stale row (unique per question/answer/level) instead of inserting a duplicate.
+      cachedRow.explanation = result.text;
+      cachedRow.modelId = result.modelConfig.modelId;
+      cachedRow.visionUsed = needsVision;
+      cachedRow.hitCount = 1;
+      await this.cacheRepository.save(cachedRow);
+    } else {
+      await this.cacheRepository.save(
+        this.cacheRepository.create({
+          questionId: dto.questionId,
+          studentAnswerLabel: dto.studentAnswerLabel ?? null,
+          detailLevel,
+          explanation: result.text,
+          modelId: result.modelConfig.modelId,
+          visionUsed: needsVision,
+          hitCount: 1,
+        }),
+      );
+    }
 
-    return { explanation: result.text, cached: false };
+    return { explanation: result.text, cached: false, usedImages: loaded.length };
+  }
+
+  /** Turns an image problem into a student-safe HTTP error; the technical detail only goes to the log. */
+  private imageProblem(err: unknown, questionId: string): HttpException {
+    if (err instanceof AiImageError) {
+      this.logger.error(`Image problem for question ${questionId} [${err.code}]: ${err.technical}`);
+      const retryable = err.code === 'image_unreachable';
+      const status = retryable ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.UNPROCESSABLE_ENTITY;
+      return new HttpException(
+        { statusCode: status, code: err.code, retryable, message: err.publicMessage },
+        status,
+      );
+    }
+    this.logger.error(`Unexpected image error for question ${questionId}: ${(err as Error).message}`, (err as Error).stack);
+    return new HttpException(
+      {
+        statusCode: HttpStatus.SERVICE_UNAVAILABLE,
+        code: 'image_unreachable',
+        retryable: true,
+        message: "Sabi couldn't load this question's diagram. Please try again in a moment.",
+      },
+      HttpStatus.SERVICE_UNAVAILABLE,
+    );
+  }
+
+  /** Interleave each image with a caption so the model can tell "Image 2" from "Image 1". */
+  private withImages(text: string, images: LoadedImage[]): AiContentPart[] {
+    return [
+      { type: 'text', text },
+      ...images.flatMap((img, i): AiContentPart[] => [
+        { type: 'text', text: `Image ${i + 1} — ${img.label}:` },
+        { type: 'image_data', mimeType: img.mimeType, data: img.data },
+      ]),
+    ];
   }
 
   /** Throws 403 when the student's open sessions forbid revealing this question's answer. */
@@ -173,11 +231,20 @@ export class AiExplainService {
       .andWhere('s.status = :status', { status: SessionStatus.IN_PROGRESS })
       .select('s.mode', 'mode')
       .addSelect('a.id', 'answerId')
-      .getRawMany<{ mode: ExamMode; answerId: string | null }>();
+      .addSelect('s.startedAt', 'startedAt')
+      .addSelect('s.allowedDurationSeconds', 'allowedDurationSeconds')
+      .getRawMany<{
+        mode: ExamMode;
+        answerId: string | null;
+        startedAt: Date;
+        allowedDurationSeconds: number | null;
+      }>();
 
     const open: OpenSessionUse[] = rows.map((r) => ({
       mode: r.mode === ExamMode.MOCK ? 'mock' : 'practice',
       answered: !!r.answerId,
+      startedAt: r.startedAt,
+      allowedDurationSeconds: r.allowedDurationSeconds,
     }));
     const decision = decideExplainAccess(open);
     if (!decision.allowed) {
@@ -212,6 +279,7 @@ export class AiExplainService {
     question: any,
     studentAnswerLabel: string | undefined,
     detailLevel: 'standard' | 'detailed',
+    images: LoadedImage[] = [],
   ): string {
     const options = (question.options ?? [])
       .map((o: any) => `${o.label}) ${o.text}`)
@@ -219,8 +287,20 @@ export class AiExplainService {
     const correctLabel = question.answer?.correctLabel;
     const existingExplanation = question.explanations?.[0]?.text;
 
+    const passage = question.passage;
     const parts = [
+      passage?.passageText
+        ? `Passage the question refers to:\n${passage.instructions ? `${passage.instructions}\n` : ''}${passage.passageText}`
+        : '',
       `Question: ${question.questionText}`,
+      images.length
+        ? `The question comes with ${images.length} image${images.length === 1 ? '' : 's'}, attached after this message in this order:\n` +
+          images.map((img, i) => `  Image ${i + 1}: ${img.label}`).join('\n') +
+          '\nLook at every image carefully BEFORE answering. Read all of its labels, letters, angles, lengths, axes, ' +
+          'values, structures and markings, and use what you actually see in your explanation. Refer to parts of the ' +
+          "diagram by the labels printed on it. If something in an image is unclear or unreadable, say so — never guess " +
+          'or invent details.'
+        : '',
       options ? `Options:\n${options}` : '',
       correctLabel ? `Correct answer: ${correctLabel}` : '',
       question.modelAnswer

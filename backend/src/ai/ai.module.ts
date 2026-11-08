@@ -18,6 +18,8 @@ import { AiRateLimitService } from './ai-rate-limit.service';
 import { AiTutorService } from './ai-tutor.service';
 import { AiScoringService } from './ai-scoring.service';
 import { AiExplainService } from './ai-explain.service';
+import { AiImageService } from './ai-image.service';
+import storageConfig from 'src/config/storageConfig';
 import { AiAdminService } from './ai-admin.service';
 import { AiSettingsService } from './ai-settings.service';
 import { AiSeedService } from './ai-seed.service';
@@ -49,6 +51,7 @@ import { AdminAlertsModule } from 'src/admin-alerts/admin-alerts.module';
       AiUsageLog,
       AiSettings,
     ]),
+    ConfigModule.forFeature(storageConfig),
     SubscriptionsModule,
     EntitlementsModule,
     QuestionsModule,
@@ -70,6 +73,7 @@ import { AdminAlertsModule } from 'src/admin-alerts/admin-alerts.module';
     AiTutorService,
     AiScoringService,
     AiExplainService,
+    AiImageService,
     AiAdminService,
     AiSettingsService,
     AiSeedService,

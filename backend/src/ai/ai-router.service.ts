@@ -27,10 +27,10 @@ export interface RouteParams {
   relatedEntityType?: string;
   relatedEntityId?: string;
   // When true, forces routing to a vision-capable model regardless of the
-  // feature's configured mapping — used for essay answers that include a
-  // diagram. Only GoogleProvider (Gemini) actually interprets images
-  // today, so this ignores mapping.primaryModelId/fallbackModelId
-  // entirely and picks the best active AIProvider.GOOGLE model instead.
+  // feature's configured mapping — used for essay answers and MCQs that include a
+  // diagram. Only the Google, Anthropic and OpenAI adapters interpret images,
+  // so this ignores mapping.primaryModelId/fallbackModelId
+  // entirely and picks the best active vision-capable model (Google, then Anthropic, then OpenAI).
   requiresVision?: boolean;
 }
 
@@ -252,21 +252,26 @@ export class AiRouterService {
       );
     }
 
-    const googleModels = await this.modelConfigRepository.find({
-      where: { provider: AIProvider.GOOGLE, isActive: true },
-      order: { avgLatencyMs: 'ASC' },
-    });
+    // Providers whose adapters actually send image bytes to the model, best first. Gemini is the product's
+    // designated vision provider; Claude and OpenAI are fallbacks. Text-only vendors are never chosen here.
+    const VISION_PROVIDERS = [AIProvider.GOOGLE, AIProvider.ANTHROPIC, AIProvider.OPENAI];
+    const candidates = (
+      await this.modelConfigRepository.find({
+        where: VISION_PROVIDERS.map((provider) => ({ provider, isActive: true })),
+        order: { avgLatencyMs: 'ASC' },
+      })
+    ).sort((a, b) => VISION_PROVIDERS.indexOf(a.provider) - VISION_PROVIDERS.indexOf(b.provider));
 
-    if (!googleModels.length) {
+    if (!candidates.length) {
       throw new InternalServerErrorException(
-        'No active vision-capable (Google/Gemini) model is configured — diagram scoring is unavailable until one is added via /ai/admin/models.',
+        'No active vision-capable (Google/Anthropic/OpenAI) model is configured — image questions cannot be processed until one is added via /ai/admin/models.',
       );
     }
 
     return {
       mapping,
-      primary: googleModels[0],
-      fallback: googleModels[1] ?? null,
+      primary: candidates[0],
+      fallback: candidates[1] ?? null,
     };
   }
 

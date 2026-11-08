@@ -273,3 +273,28 @@ describe("accessibility structure", () => {
     expect(screen.getByRole("button", { name: /refresh question 2 discussions/i })).toBeInTheDocument();
   });
 });
+
+describe("equations in contributions", () => {
+  it("typesets explicit LaTeX in a student's comment, leaving the rest as text", async () => {
+    vi.mocked(api.listContributions).mockResolvedValue(
+      page([mk({ content: "I used \\(x=\\frac{-b\\pm\\sqrt{b^2-4ac}}{2a}\\) and got 48" })]),
+    );
+    renderIt(<QuestionDiscussion questionId={Q} />);
+    const card = (await screen.findByText(/and got 48/)).closest("article")!;
+    expect(card.querySelector(".mfrac")).not.toBeNull();
+    expect(card.querySelector(".katex-mathml msqrt")).not.toBeNull();
+  });
+
+  it("does NOT rewrite casual typing: a plain 'x^2' or '(a+1)/(b+2)' stays exactly as the student typed it", async () => {
+    vi.mocked(api.listContributions).mockResolvedValue(page([mk({ content: "is it x^2 or (a+1)/(b+2)?" })]));
+    renderIt(<QuestionDiscussion questionId={Q} />);
+    const card = (await screen.findByText(/is it x\^2/)).closest("article")!;
+    expect(card.querySelector(".katex")).toBeNull();
+  });
+
+  it("a comment that is just broken LaTeX shows as text instead of breaking the thread", async () => {
+    vi.mocked(api.listContributions).mockResolvedValue(page([mk({ content: "oops \\(\\frac{1\\) done" })]));
+    renderIt(<QuestionDiscussion questionId={Q} />);
+    expect(await screen.findByText(/done/)).toBeInTheDocument();
+  });
+});

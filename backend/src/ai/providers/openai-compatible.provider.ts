@@ -5,7 +5,9 @@ import {
   AiCompletionResult,
   AiProvider,
   AiStreamChunk,
+  AiContentPart,
   extractText,
+  hasImageParts,
 } from '../interfaces/ai-provider.interface';
 
 // OpenAI's newer model families (GPT-5+, o-series) are reasoning models:
@@ -178,18 +180,30 @@ export class OpenAiCompatibleProvider implements AiProvider {
     return body;
   }
 
-  private buildMessages(params: AiCompletionParams): AiChatMessage[] {
+  // Only the real OpenAI endpoint is sent images (its chat models accept them as data URLs). The
+  // other OpenAI-compatible vendors (Groq/DeepSeek/Mistral/OpenRouter/Ollama) vary model by model,
+  // so for them image parts are dropped via extractText() as before — and AiRouterService never
+  // routes a vision-required request to them.
+  private buildMessages(params: AiCompletionParams): Array<{ role: AiChatMessage['role']; content: unknown }> {
+    const vision = this.providerLabel === 'OpenAI';
     return [
       { role: 'system', content: params.systemPrompt },
-      // Text-only provider — image parts are dropped via extractText()
-      // rather than sent as-is (which would break the request shape).
-      // See AiChatMessage's doc comment for why this degrades gracefully
-      // instead of throwing.
       ...params.messages.map((m) => ({
         role: m.role,
-        content: extractText(m.content),
+        content: vision && hasImageParts(m.content) ? this.toVisionContent(m.content as AiContentPart[]) : extractText(m.content),
       })),
     ];
+  }
+
+  private toVisionContent(parts: AiContentPart[]) {
+    return parts.map((p) =>
+      p.type === 'text'
+        ? { type: 'text', text: p.text }
+        : {
+            type: 'image_url',
+            image_url: { url: p.type === 'image_data' ? `data:${p.mimeType};base64,${p.data}` : p.imageUrl },
+          },
+    );
   }
 
   private headers(): Record<string, string> {

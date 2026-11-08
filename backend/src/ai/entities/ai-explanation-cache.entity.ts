@@ -37,6 +37,11 @@ export class AiExplanationCache {
   @Column({ type: 'varchar', nullable: true })
   modelId: string | null;
 
+  // True when the model was shown the question's image(s) when it wrote this. Rows without it are
+  // not reused for questions that have images (they were generated blind to the diagram).
+  @Column({ type: 'boolean', default: false })
+  visionUsed: boolean;
+
   @Column({ default: 0 })
   hitCount: number;
 

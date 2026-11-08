@@ -1,5 +1,5 @@
 import { CheckCircle, ChevronLeft, ChevronRight, Volume2, VolumeX } from "lucide-react";
-import Image from "next/image";
+import QuestionImage from "@/Components/content/QuestionImage";
 import QuestionText from "./QuestionText";
 import Options, { type McqFeedback } from "./Options";
 import PassagePanel from "../../../components/PassagePanel";
@@ -78,18 +78,11 @@ const LeftQuestion = ({
           </div>
         )}
 
-        {/* Real question image, e.g. a diagram/chart uploaded with the question */}
+        {/* Real question image (diagram/chart). No frame, border or wrapper background of its own: it sits flush
+            with the question text above and below, on a white "paper" backdrop, full width, never cropped. */}
         {currentQuestion.questionImageUrl && (
-          <div
-            data-testid="question-image-container"
-            className="border-b p-6 flex justify-center bg-cream/30">
-            <Image
-              src={currentQuestion.questionImageUrl}
-              width={600}
-              height={400}
-              alt="Question diagram"
-              className="max-w-full rounded-lg border border-gray-200 max-h-80 object-contain"
-            />
+          <div data-testid="question-image-container" className="px-6 pt-5">
+            <QuestionImage src={currentQuestion.questionImageUrl} alt="Question diagram" />
           </div>
         )}
 

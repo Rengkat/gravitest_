@@ -7,6 +7,8 @@ import AiExplainModal, { type ExplainCache } from "./AiExplainModal";
 interface ExplainWithAiButtonProps {
   /** The question (or part) this button belongs to — shown as context in the dialog. */
   questionText: string;
+  /** The question's diagram, shown in the dialog so the student sees what Sabi is reading. */
+  imageUrl?: string;
   /** Bound to THIS question only: carries its id, the student's answer, etc. */
   request: () => Promise<string>;
   label?: string;
@@ -20,6 +22,7 @@ interface ExplainWithAiButtonProps {
  */
 export default function ExplainWithAiButton({
   questionText,
+  imageUrl,
   request,
   label = "Explain with Sabi",
   className,
@@ -43,6 +46,7 @@ export default function ExplainWithAiButton({
       {open && (
         <AiExplainModal
           questionText={questionText}
+          imageUrl={imageUrl}
           request={request}
           cache={cache.current}
           onClose={() => setOpen(false)}

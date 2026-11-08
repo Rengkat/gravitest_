@@ -1,16 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { AlertTriangle, Loader2, RefreshCw, Sparkles, X } from "lucide-react";
-import { extractErrorMessage } from "@/lib/api/client";
+import { AlertTriangle, Loader2, Lock, RefreshCw, Sparkles, X } from "lucide-react";
+import { explainFailure, type ExplainFailure } from "@/lib/api/aiExplain";
 import { accessErrorDecision, parseAccessError, type AccessError } from "@/lib/billing/errors";
 import { UpgradePrompt } from "@/Components/billing/FeatureGate";
 import MarkdownContent from "./MarkdownContent";
+import MathText from "@/Components/content/MathText";
+import QuestionImage from "@/Components/content/QuestionImage";
 
 type LoadState =
   | { status: "loading" }
   | { status: "done"; text: string }
-  | { status: "error"; message: string }
+  | { status: "error"; failure: ExplainFailure }
   | { status: "locked"; access: AccessError };
 
 /** Survives closing/reopening the dialog for ONE question (owned by the button). */
@@ -24,6 +26,8 @@ const FOCUSABLE =
 interface AiExplainModalProps {
   /** Short context shown under the title (the question itself). */
   questionText: string;
+  /** The question's diagram (optional). */
+  imageUrl?: string;
   /** Fetches the AI explanation for ONE question. Must be bound to that question. One request, one level. */
   request: () => Promise<string>;
   cache: ExplainCache;
@@ -36,7 +40,7 @@ interface AiExplainModalProps {
  * - Focus moves in on open, is trapped while open and returns to the opener on close. Esc closes.
  * - One AI request per question (cached while the page is open); loading / error / retry states.
  */
-export default function AiExplainModal({ questionText, request, cache, onClose }: AiExplainModalProps) {
+export default function AiExplainModal({ questionText, imageUrl, request, cache, onClose }: AiExplainModalProps) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const inFlight = useRef(false);
@@ -55,7 +59,8 @@ export default function AiExplainModal({ questionText, request, cache, onClose }
       })
       .catch((err) => {
         const access = parseAccessError(err);
-        setState(access ? { status: "locked", access } : { status: "error", message: extractErrorMessage(err) });
+        // Billing/limit gates have their own upgrade UI; everything else is classified (locked / retryable / not).
+        setState(access ? { status: "locked", access } : { status: "error", failure: explainFailure(err) });
       })
       .finally(() => {
         inFlight.current = false;
@@ -113,8 +118,13 @@ export default function AiExplainModal({ questionText, request, cache, onClose }
               <Sparkles size={18} className="shrink-0 text-green-700" aria-hidden="true" />
               Sabi-AI Explains
             </h2>
-            <div className="mt-1 max-h-20 overflow-y-auto text-[13px] leading-relaxed text-gray-600">
-              <MarkdownContent text={questionText} className="!text-[13px] !leading-relaxed !text-gray-600" />
+            <div className="mt-1 max-h-32 space-y-2 overflow-y-auto text-[13px] leading-relaxed text-gray-600">
+              <MathText text={questionText} className="block !text-[13px] !leading-relaxed !text-gray-600" />
+              {imageUrl && (
+                <div className="max-w-xs">
+                  <QuestionImage src={imageUrl} alt="The question diagram Sabi is explaining" size="option" />
+                </div>
+              )}
             </div>
           </div>
           <button
@@ -145,16 +155,38 @@ export default function AiExplainModal({ questionText, request, cache, onClose }
             />
           )}
 
-          {state.status === "error" && (
+          {state.status === "error" && state.failure.locked && (
+            <div role="status" className="mx-auto max-w-md rounded-xl border border-amber-300 bg-amber-50 p-5 text-center">
+              <Lock size={22} className="mx-auto mb-2 text-amber-700" aria-hidden="true" />
+              <p className="mb-1 text-sm font-semibold text-amber-900">{state.failure.message}</p>
+              {state.failure.code === "attempt_first" && (
+                <>
+                  <p className="mb-3 text-[13px] text-amber-800">Once you have answered it, ask Sabi again.</p>
+                  <button
+                    type="button"
+                    onClick={load}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-amber-700 px-4 py-2 text-sm font-semibold text-amber-900 hover:bg-amber-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700">
+                    <RefreshCw size={14} aria-hidden="true" /> I&apos;ve answered — check again
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          {state.status === "error" && !state.failure.locked && (
             <div role="alert" className="mx-auto max-w-md rounded-xl border border-red-200 bg-red-50 p-5 text-center">
               <AlertTriangle size={22} className="mx-auto mb-2 text-red-600" aria-hidden="true" />
-              <p className="mb-3 text-sm text-red-700">{state.message}</p>
-              <button
-                type="button"
-                onClick={load}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-green-800 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700">
-                <RefreshCw size={14} aria-hidden="true" /> Try again
-              </button>
+              <p className="mb-3 text-sm text-red-700">{state.failure.message}</p>
+              {state.failure.retryable ? (
+                <button
+                  type="button"
+                  onClick={load}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-green-800 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700">
+                  <RefreshCw size={14} aria-hidden="true" /> Try again
+                </button>
+              ) : (
+                <p className="text-[12px] text-red-700/80">This can&apos;t be fixed by retrying — please tell your teacher or support.</p>
+              )}
             </div>
           )}
 

@@ -1,17 +1,21 @@
 "use client";
 
-import renderMarkdown from "@/app/(protected)/ai-tutor/components/RenderMarkdown";
+import RichContent from "@/Components/content/RichContent";
 
 /**
- * Renders AI/Markdown text as real content (headings, lists, tables, bold,
- * code blocks, KaTeX maths) using the app's existing Markdown renderer, so
- * "###", "**" and "\[ \]" never show up literally. Plain text with line
- * breaks and paragraphs is preserved.
+ * Renders AI/Markdown text as real content (headings, lists, tables, bold, code blocks, typeset maths) so
+ * "###", "**" and "\\[ \\]" never show up literally. Kept as a stable import for existing callers; the
+ * implementation is the shared RichContent renderer. AI text uses explicit LaTeX delimiters only.
  */
-export default function MarkdownContent({ text, className = "" }: { text: string; className?: string }) {
-  return (
-    <div className={`text-[15px] leading-7 text-gray-800 break-words ${className}`}>
-      {renderMarkdown(text)}
-    </div>
-  );
+export default function MarkdownContent({
+  text,
+  className = "",
+  legacyMath = false,
+}: {
+  text: string;
+  className?: string;
+  /** Also typeset unambiguous plain-text maths — for stored (database) content, not AI replies. */
+  legacyMath?: boolean;
+}) {
+  return <RichContent text={text} legacyMath={legacyMath} className={className} />;
 }

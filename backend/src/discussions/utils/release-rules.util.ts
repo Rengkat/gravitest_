@@ -1,6 +1,6 @@
 import { ExamMode, QuestionType, SessionStatus } from 'src/common/enums/enums';
 import { EssayScoringStatus } from 'src/students/entities/student-answers.entity';
-import { getDeadlineMs, SUBMIT_GRACE_SECONDS } from 'src/exams/utils/exam-timing.util';
+import { isWithinLiveExamWindow, UNTIMED_LIVE_WINDOW_HOURS } from 'src/exams/utils/exam-timing.util';
 
 /**
  * The single definition of WHEN a student may see a question's discussion.
@@ -64,7 +64,7 @@ export function isCorrectionReleased(a: AttemptFacts): boolean {
 }
 
 /** Long-abandoned untimed exams must not block discussions forever. */
-export const UNTIMED_ACTIVE_WINDOW_HOURS = 12;
+export const UNTIMED_ACTIVE_WINDOW_HOURS = UNTIMED_LIVE_WINDOW_HOURS;
 
 /**
  * Is this session an exam the student is, right now, expected to be sitting?
@@ -76,7 +76,5 @@ export function isActiveExam(
   nowMs: number,
 ): boolean {
   if (s.mode !== ExamMode.MOCK || s.status !== SessionStatus.IN_PROGRESS) return false;
-  const deadline = getDeadlineMs(s);
-  if (deadline !== null) return nowMs <= deadline + SUBMIT_GRACE_SECONDS * 1000;
-  return nowMs - new Date(s.startedAt).getTime() < UNTIMED_ACTIVE_WINDOW_HOURS * 3600_000;
+  return isWithinLiveExamWindow(s, nowMs);
 }

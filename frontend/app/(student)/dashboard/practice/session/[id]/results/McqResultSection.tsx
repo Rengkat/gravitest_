@@ -4,7 +4,9 @@ import { useState } from "react";
 import { CheckCircle2, XCircle, Sparkles, CircleDot, CircleSlash } from "lucide-react";
 import { Question } from "@/lib/constants/mcq";
 import { McqSubject } from "@/lib/session/deriveMcqSubjects";
-import MarkdownContent from "@/Components/shared/MarkdownContent";
+import RichContent from "@/Components/content/RichContent";
+import MathText from "@/Components/content/MathText";
+import QuestionImage from "@/Components/content/QuestionImage";
 import ExplainWithAiButton from "@/Components/shared/ExplainWithAiButton";
 import QuestionDiscussion from "@/Components/discussion/QuestionDiscussion";
 import { explainMcqQuestion } from "@/lib/api/aiExplain";
@@ -114,20 +116,32 @@ export default function McqResultSection({ showScores, correct, total, percentag
               </span>
             )}
           </div>
-          <p className="text-[14px] text-gray-900 mb-3">{activeData.question.text}</p>
+          <MathText as="p" text={activeData.question.text} className="mb-3 block text-[14px] text-gray-900" />
+          {activeData.question.questionImageUrl && (
+            <div className="mb-3">
+              <QuestionImage src={activeData.question.questionImageUrl} alt="Question diagram" />
+            </div>
+          )}
           <div className="space-y-2 mb-3">
-            {activeData.question.options.map((text, idx) => {
+            {activeData.question.options.map((option, idx) => {
               const letter = String.fromCharCode(65 + idx); // A, B, C, … for however many options exist
               const isCorrectOpt = letter === activeData.question.correctAnswer;
               const isYourPick = letter === activeData.selected;
               return (
                 <div
                   key={letter}
-                  className={`flex items-center gap-3 p-2.5 rounded-lg border text-[13px] ${
+                  className={`flex items-start gap-3 p-2.5 rounded-lg border text-[13px] ${
                     isCorrectOpt ? "border-green-700 bg-green-50" : isYourPick ? "border-red-500 bg-red-50" : "border-gray-200"
                   }`}>
                   <span className="font-bold text-gray-800 w-4">{letter}.</span>
-                  <span className="flex-1 text-gray-900">{text}</span>
+                  <div className="min-w-0 flex-1">
+                    <MathText text={option.text} className="text-gray-900" />
+                    {option.imageUrl && (
+                      <div className="mt-2">
+                        <QuestionImage src={option.imageUrl} alt={`Option ${letter}`} size="option" />
+                      </div>
+                    )}
+                  </div>
                   {isCorrectOpt && (
                     <>
                       <CheckCircle2 size={15} className="text-green-700 shrink-0" aria-hidden="true" />
@@ -150,7 +164,7 @@ export default function McqResultSection({ showScores, correct, total, percentag
               <Sparkles size={13} aria-hidden="true" /> Explanation
             </p>
             {activeData.question.explanation ? (
-              <MarkdownContent text={activeData.question.explanation} className="!text-[13px] !leading-relaxed" />
+              <RichContent text={activeData.question.explanation} legacyMath className="!text-[13px] !leading-relaxed" />
             ) : (
               <p className="text-[13px] text-gray-800">
                 No explanation is stored for this question yet — use “Explain with Sabi” below.
@@ -163,6 +177,7 @@ export default function McqResultSection({ showScores, correct, total, percentag
               <ExplainWithAiButton
                 key={activeKey}
                 questionText={activeData.question.text}
+                imageUrl={activeData.question.questionImageUrl ?? undefined}
                 label={activeData.question.explanation ? "Explain more with Sabi" : "Explain with Sabi"}
                 request={async () =>
                   (await explainMcqQuestion(activeData.question.questionId!, activeData.selected ?? undefined, "standard"))

@@ -3,6 +3,7 @@
 import { useId, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Flag, Loader2, Pencil, ThumbsDown, ThumbsUp, Trash2 } from "lucide-react";
 import Avatar from "./Avatar";
+import MathText from "@/Components/content/MathText";
 import Composer from "./Composer";
 import { useDiscussionCtx } from "./DiscussionContext";
 import { absoluteTime, relativeTime } from "@/lib/discussion/relativeTime";
@@ -115,7 +116,7 @@ export default function ContributionCard({ c, isReply = false, onReplyTo }: Prop
           </p>
         ) : (
           <>
-            {c.content && <p className="whitespace-pre-wrap break-words text-[14px] leading-relaxed text-gray-800">{c.content}</p>}
+            {c.content && <MathText as="p" text={c.content} legacyMath={false} className="block text-[14px] leading-relaxed text-gray-800" />}
             {c.imageUrls.length > 0 && (
               <ul className="mt-2 flex flex-wrap gap-2">
                 {c.imageUrls.map((url, i) => (

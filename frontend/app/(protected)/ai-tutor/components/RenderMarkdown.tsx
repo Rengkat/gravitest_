@@ -1,7 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import { BlockMath, InlineMath } from "react-katex";
-import "katex/dist/katex.min.css";
+import MathSpan from "@/Components/content/MathSpan";
 
 /* ─────────────────────────────────────────────────────────
    MARKDOWN RENDERER FOR TUTOR MESSAGES
@@ -44,10 +43,10 @@ function inline(text: string): React.ReactNode {
     if (!part) return null;
 
     if (part.startsWith("\\(") && part.endsWith("\\)")) {
-      return <InlineMath key={i} math={part.slice(2, -2)} />;
+      return <MathSpan key={i} tex={part.slice(2, -2)} />;
     }
     if (part.length > 2 && part.startsWith("$") && part.endsWith("$")) {
-      return <InlineMath key={i} math={part.slice(1, -1)} />;
+      return <MathSpan key={i} tex={part.slice(1, -1)} />;
     }
 
     const link = part.match(INTERNAL_LINK);
@@ -302,9 +301,7 @@ export default function renderMarkdown(text: string): React.ReactNode[] {
       }
       if (closed) {
         nodes.push(
-          <div key={key++} className="my-2 overflow-x-auto">
-            <BlockMath math={buf.trim()} />
-          </div>,
+          <MathSpan key={key++} tex={buf.trim()} display />,
         );
         i = j + 1;
         continue;
@@ -324,7 +321,13 @@ export default function renderMarkdown(text: string): React.ReactNode[] {
     if (heading) {
       const level = heading[1].length;
       nodes.push(
-        <p key={key++} className={`font-serif ${HEADING_SIZES[level]} mt-3 mb-1 font-normal text-green-900`}>
+        // Same look as before, but exposed as a real heading so screen-reader users can jump between steps.
+        // aria-level is offset by 2: the page already has its own h1/h2 above any embedded explanation.
+        <p
+          key={key++}
+          role="heading"
+          aria-level={Math.min(6, level + 2)}
+          className={`font-serif ${HEADING_SIZES[level]} mt-3 mb-1 font-normal text-green-900`}>
           {inline(heading[2])}
         </p>,
       );

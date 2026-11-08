@@ -17,7 +17,9 @@ import {
 import AIResultPanel from "@/app/(protected)/cbt/theory/components/AIResultPanel";
 import QuestionDiscussion from "@/Components/discussion/QuestionDiscussion";
 import ExplainWithAiButton from "@/Components/shared/ExplainWithAiButton";
-import MarkdownContent from "@/Components/shared/MarkdownContent";
+import RichContent from "@/Components/content/RichContent";
+import MathText from "@/Components/content/MathText";
+import QuestionImage from "@/Components/content/QuestionImage";
 import { explainMcqQuestion } from "@/lib/api/aiExplain";
 import { regradeAnswer } from "@/lib/api/exams";
 import { extractErrorMessage } from "@/lib/api/client";
@@ -150,13 +152,9 @@ export default function TheoryResultSection({
           </div>
 
           {active.imageUrl && (
-            <Image
-              src={active.imageUrl}
-              width={500}
-              height={400}
-              alt={`Diagram for ${active.title}`}
-              className="mb-3 max-w-full rounded-lg border border-gray-200 max-h-64 object-contain"
-            />
+            <div className="mb-3">
+              <QuestionImage src={active.imageUrl} alt={`Diagram for ${active.title}`} />
+            </div>
           )}
 
           {/* Grading failed for this question: clear status + retry (everything else stays available). */}
@@ -194,7 +192,12 @@ export default function TheoryResultSection({
                     </span>
                   )}
                 </div>
-                <p className="text-[13px] text-gray-800 mb-3">{sub.text}</p>
+                <MathText as="p" text={sub.text} className="mb-3 block text-[13px] text-gray-800" />
+                {sub.imageUrl && (
+                  <div className="mb-3">
+                    <QuestionImage src={sub.imageUrl} alt={`Diagram for part ${sub.label}`} />
+                  </div>
+                )}
 
                 <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3">
                   <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-gray-700">Your answer</p>
@@ -248,7 +251,7 @@ export default function TheoryResultSection({
               <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-green-900">
                 <Sparkles size={13} aria-hidden="true" /> Explanation
               </p>
-              <MarkdownContent text={active.explanation} className="!text-[13px] !leading-relaxed" />
+              <RichContent text={active.explanation} legacyMath className="!text-[13px] !leading-relaxed" />
             </div>
           )}
 
@@ -265,7 +268,7 @@ export default function TheoryResultSection({
               </button>
               {showModel[active.id] && (
                 <div className="mt-2 rounded-lg border border-green-200 bg-white p-3">
-                  <MarkdownContent text={active.modelAnswer} className="!text-[13px] !leading-relaxed" />
+                  <RichContent text={active.modelAnswer} legacyMath className="!text-[13px] !leading-relaxed" />
                 </div>
               )}
             </div>

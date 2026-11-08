@@ -2,8 +2,9 @@ import { useCallback } from "react";
 import { Question } from "@/lib/constants/mcq";
 import { SessionMode } from "@/lib/session/practiceSession";
 import { CheckCircle2, XCircle, Sparkles, Loader2 } from "lucide-react";
-import Image from "next/image";
-import MarkdownContent from "@/Components/shared/MarkdownContent";
+import RichContent from "@/Components/content/RichContent";
+import MathText from "@/Components/content/MathText";
+import QuestionImage from "@/Components/content/QuestionImage";
 import ExplainWithAiButton from "@/Components/shared/ExplainWithAiButton";
 import { explainMcqQuestion } from "@/lib/api/aiExplain";
 import QuestionDiscussion from "@/Components/discussion/QuestionDiscussion";
@@ -94,16 +95,10 @@ const Options = ({
               <span className="font-bold text-green-800 w-6">{letter}.</span>
             </div>
             <div className="flex-1 min-w-0">
-              <span className="text-[14px] text-gray-700">{option.text}</span>
+              <MathText text={option.text} className="text-[14px] text-gray-700" />
               {option.imageUrl && (
                 <div className="mt-2">
-                  <Image
-                    src={option.imageUrl}
-                    width={280}
-                    height={200}
-                    alt={`Option ${letter}`}
-                    className="max-w-full rounded-lg border border-gray-200 max-h-48 object-contain"
-                  />
+                  <QuestionImage src={option.imageUrl} alt={`Option ${letter}`} size="option" />
                 </div>
               )}
             </div>
@@ -162,7 +157,7 @@ const Options = ({
               Explanation
             </p>
             {currentQuestion.explanation ? (
-              <MarkdownContent text={currentQuestion.explanation} className="!text-[14px] !leading-relaxed" />
+              <RichContent text={currentQuestion.explanation} legacyMath className="!text-[14px] !leading-relaxed" />
             ) : (
               <p className="text-[13px] text-gray-700">
                 No explanation is stored for this question yet — use “Explain with Sabi” below.
@@ -173,6 +168,7 @@ const Options = ({
           <ExplainWithAiButton
             key={currentQuestion.sessionQuestionId ?? currentQuestion.id}
             questionText={currentQuestion.text}
+            imageUrl={currentQuestion.questionImageUrl ?? undefined}
             request={requestExplanation}
             label={currentQuestion.explanation ? "Explain more with Sabi" : "Explain with Sabi"}
           />

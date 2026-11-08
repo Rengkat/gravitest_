@@ -182,6 +182,11 @@ export class GoogleProvider implements AiProvider {
         parts.push({ text: part.text });
         continue;
       }
+      if (part.type === 'image_data') {
+        // Already fetched + validated by this server — send the bytes as they are.
+        parts.push({ inlineData: { mimeType: part.mimeType, data: part.data } });
+        continue;
+      }
       // The model must receive the real image bytes. If they cannot be fetched
       // we FAIL the request instead of quietly grading/explaining on text alone
       // — silently dropping the image would let the AI claim it inspected a
