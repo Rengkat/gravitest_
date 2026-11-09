@@ -1,3 +1,10 @@
+import * as dotenv from 'dotenv';
+
+if (process.env.NODE_ENV) {
+  dotenv.config({ path: `.env.${process.env.NODE_ENV}` });
+}
+dotenv.config({ path: '.env' });
+
 // Read directly from process.env rather than ConfigService — this needs
 // to run at module-definition time (before Nest's DI container exists) so
 // AuthModule can decide whether to register GoogleStrategy/FacebookStrategy
