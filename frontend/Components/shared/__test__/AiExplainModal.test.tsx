@@ -221,3 +221,51 @@ describe("AiExplainModal — locked and failed states", () => {
     expect(clone.textContent).not.toMatch(/\\\[|\\\(/);
   });
 });
+
+describe("AiExplainModal — layout of the question and diagram", () => {
+  const url = "https://pub.example.r2.dev/q/circle.jpg";
+  const open = async () => {
+    render(
+      <AiExplainModal questionText="Find angle m" imageUrl={url} request={vi.fn().mockResolvedValue("Because…")} cache={{}} onClose={vi.fn()} />,
+    );
+    return screen.findByRole("dialog");
+  };
+
+  test("there is exactly ONE scrolling region: the header holds only the title and close button", async () => {
+    const dialog = await open();
+    const scrollers = Array.from(dialog.querySelectorAll("*")).filter((el) => /(^|\s)overflow-y-auto(\s|$)/.test(el.className?.toString() ?? ""));
+    expect(scrollers).toHaveLength(1);
+    const header = dialog.querySelector("header")!;
+    expect(header.querySelector("img")).toBeNull(); // the diagram is not squeezed into the header
+    expect(header.querySelector('[class*="overflow-y-auto"]')).toBeNull();
+    expect(header.querySelector('[class*="max-h-"]')).toBeNull(); // nothing clipped by a height cap up here
+  });
+
+  test("the question and its diagram sit inside the scrollable body, diagram first and compact", async () => {
+    const dialog = await open();
+    const body = dialog.querySelector("[aria-busy]")!;
+    const card = screen.getByTestId("explain-question");
+    expect(body.contains(card)).toBe(true);
+    expect(card.querySelector("img")).toHaveAttribute("src", url);
+    expect(card.querySelector("img")?.className).toMatch(/max-h-36/);
+    expect(card).toHaveTextContent("Find angle m");
+  });
+
+  test("with no diagram the question card is just the text", async () => {
+    render(<AiExplainModal questionText="Plain question" request={vi.fn().mockResolvedValue("ok")} cache={{}} onClose={vi.fn()} />);
+    await screen.findByRole("dialog");
+    expect(screen.getByTestId("explain-question").querySelector("img")).toBeNull();
+  });
+
+  test("the diagram can be enlarged, and Escape closes only the enlarged view — not the explanation", async () => {
+    const onClose = vi.fn();
+    render(<AiExplainModal questionText="Q" imageUrl={url} request={vi.fn().mockResolvedValue("ok")} cache={{}} onClose={onClose} />);
+    await userEvent.click(await screen.findByRole("button", { name: /view larger/i }));
+    expect(await screen.findByRole("dialog", { name: /question diagram/i })).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: /sabi-ai explains/i })).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    expect(onClose).toHaveBeenCalledTimes(1); // a second Escape closes the explanation itself
+  });
+});

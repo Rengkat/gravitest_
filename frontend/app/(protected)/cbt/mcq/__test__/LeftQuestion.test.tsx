@@ -129,12 +129,14 @@ describe("LeftQuestion — diagram and equations", () => {
     ...over,
   });
 
-  test("the diagram sits flush in the question: full width, no frame or tinted wrapper around it", () => {
+  test("the diagram is compact and flush: modest height, hugging the image, no frame or tinted wrapper", () => {
     render(<LeftQuestion {...defaultProps} currentQuestion={withImage()} />);
     const figure = screen.getByTestId("question-image");
     const img = screen.getByRole("img", { name: "Question diagram" });
-    expect(img.className).toMatch(/(^|\s)w-full(\s|$)/);
+    expect(img.className).not.toMatch(/(^|\s)w-full(\s|$)/);
+    expect(img.className).toMatch(/max-h-\[min\(36vh,17rem\)\]/);
     expect(img.className).toMatch(/object-contain/);
+    expect(figure.className).toMatch(/w-fit/);
     expect(figure.className).not.toMatch(/\bborder/);
     const wrapper = screen.getByTestId("question-image-container");
     expect(wrapper.className).not.toMatch(/\bborder/);

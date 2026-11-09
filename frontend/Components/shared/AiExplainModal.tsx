@@ -113,20 +113,10 @@ export default function AiExplainModal({ questionText, imageUrl, request, cache,
         onKeyDown={handleKeyDown}
         className="flex w-full max-h-[94vh] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl outline-none sm:w-[90vw] lg:w-[85vw] sm:max-h-[90vh] max-w-6xl">
         <header className="flex items-start justify-between gap-3 border-b border-gray-200 px-4 py-3 sm:px-6 sm:py-4">
-          <div className="min-w-0">
-            <h2 id={titleId} className="flex items-center gap-2 text-base font-bold text-gray-900 sm:text-lg">
-              <Sparkles size={18} className="shrink-0 text-green-700" aria-hidden="true" />
-              Sabi-AI Explains
-            </h2>
-            <div className="mt-1 max-h-32 space-y-2 overflow-y-auto text-[13px] leading-relaxed text-gray-600">
-              <MathText text={questionText} className="block !text-[13px] !leading-relaxed !text-gray-600" />
-              {imageUrl && (
-                <div className="max-w-xs">
-                  <QuestionImage src={imageUrl} alt="The question diagram Sabi is explaining" size="option" />
-                </div>
-              )}
-            </div>
-          </div>
+          <h2 id={titleId} className="flex min-w-0 items-center gap-2 text-base font-bold text-gray-900 sm:text-lg">
+            <Sparkles size={18} className="shrink-0 text-green-700" aria-hidden="true" />
+            Sabi-AI Explains
+          </h2>
           <button
             type="button"
             onClick={onClose}
@@ -140,6 +130,23 @@ export default function AiExplainModal({ questionText, imageUrl, request, cache,
           aria-busy={state.status === "loading"}
           tabIndex={0}
           className="min-h-[200px] flex-1 overflow-y-auto px-4 py-5 sm:px-8 sm:py-6">
+          {/* The question (and its diagram) lives INSIDE the single scrolling area — never in a second, nested
+              scroll box in the header — so nothing is clipped and there is only one scrollbar. */}
+          <section
+            aria-label="The question"
+            data-testid="explain-question"
+            className="mb-5 flex flex-col gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 sm:flex-row sm:items-start sm:gap-4 sm:p-4">
+            {imageUrl && (
+              <div className="shrink-0">
+                <QuestionImage src={imageUrl} alt="The question diagram Sabi is explaining" size="compact" />
+              </div>
+            )}
+            <MathText
+              text={questionText}
+              className="block min-w-0 flex-1 !text-[13.5px] !leading-relaxed !text-gray-700"
+            />
+          </section>
+
           {state.status === "loading" && (
             <div role="status" className="flex items-center justify-center gap-2 py-12 text-green-800">
               <Loader2 size={20} className="animate-spin" aria-hidden="true" />
