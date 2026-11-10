@@ -194,7 +194,7 @@ export const FAQS: FaqItem[] = [
     category: "Account & Security",
     question: "I forgot my password. How do I get back in?",
     answer:
-      'Go to gravitest.ng/login and click "Forgot password?". Enter your email and we\'ll send a reset ' +
+      'Go to gravitest.com/login and click "Forgot password?". Enter your email and we\'ll send a reset ' +
       'link within 2 minutes. If you signed up with your phone number, tap "Phone OTP" on the login ' +
       "page instead — you'll receive a 6-digit code by SMS.",
   },
@@ -224,9 +224,9 @@ export const CONTACT_OPTIONS: ContactOption[] = [
   {
     icon: Mail,
     title: "Email Support",
-    desc: "Send us a detailed message at support@gravitest.ng. We respond within 4 hours on business days.",
+    desc: "Send us a detailed message at support@gravitest.com. We respond within 4 hours on business days.",
     cta: "Send an email →",
-    href: "mailto:support@gravitest.ng",
+    href: "mailto:support@gravitest.com?subject=Gravitest Support Request",
     primary: false,
   },
   {

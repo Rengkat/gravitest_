@@ -18,7 +18,6 @@ type View = "login" | "forgot" | "success";
 type Tab = "email" | "phone";
 const OAUTH_BTN =
   "w-full flex items-center justify-center gap-3 py-3.5 px-4 rounded-xl border-2 border-green-900/[0.12] bg-white font-semibold text-green-900 text-sm hover:border-green-900/25 hover:bg-green-50/40 transition-all duration-200 hover:-translate-y-px hover:shadow-[0_6px_20px_rgba(13,43,26,0.12)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none";
-
 const ADMIN_ROLES = new Set(["admin", "super_admin"]);
 
 export default function LoginPage() {

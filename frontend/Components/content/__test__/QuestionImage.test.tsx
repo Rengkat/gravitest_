@@ -22,13 +22,31 @@ describe("QuestionImage — layout", () => {
     expect(button.firstElementChild?.tagName).toBe("IMG");
   });
 
-  it("is modest in size: capped well below the viewport, and only as wide as the image needs", () => {
+  it("the paper band spans the full width of the question, with the diagram centred and modest in height", () => {
     render(<QuestionImage src={jpg} alt="d" />);
+    const figure = screen.getByTestId("question-image");
+    expect(figure.className).toMatch(/(^|\s)w-full(\s|$)/); // the white band covers the whole width
+    expect(figure.className).not.toMatch(/w-fit/);
     const img = screen.getByRole("img", { name: "d" });
-    expect(img.className).toMatch(/max-h-\[min\(36vh,17rem\)\]/); // never takes over the page
-    expect(img.className).not.toMatch(/(^|\s)w-full(\s|$)/); // no stretching across the page
-    expect(img.className).toMatch(/(^|\s)w-auto(\s|$)/);
-    expect(screen.getByTestId("question-image").className).toMatch(/w-fit/); // white box hugs the diagram
+    expect(img.className).toMatch(/mx-auto/); // centred inside the band
+    expect(img.className).toMatch(/max-h-\[min\(36vh,17rem\)\]/); // but never takes over the page
+    expect(img.className).toMatch(/(^|\s)w-auto(\s|$)/); // and is never upscaled/stretched
+  });
+
+  it("a graph is allowed more height than a diagram — still never cropped", () => {
+    const { rerender } = render(<QuestionImage src={jpg} alt="d" kind="diagram" />);
+    expect(screen.getByRole("img", { name: "d" }).className).toMatch(/max-h-\[min\(36vh,17rem\)\]/);
+    expect(screen.getByTestId("question-image")).toHaveAttribute("data-kind", "diagram");
+    rerender(<QuestionImage src={jpg} alt="d" kind="graph" />);
+    const img = screen.getByRole("img", { name: "d" });
+    expect(img.className).toMatch(/max-h-\[min\(62vh,30rem\)\]/);
+    expect(img.className).toMatch(/object-contain/);
+    expect(screen.getByTestId("question-image")).toHaveAttribute("data-kind", "graph");
+  });
+
+  it("with no way to inspect the pixels it falls back to the compact diagram size", () => {
+    render(<QuestionImage src={jpg} alt="d" />);
+    expect(screen.getByTestId("question-image")).toHaveAttribute("data-kind", "diagram");
   });
 
   it("keeps its aspect ratio and is never cropped", () => {
@@ -41,9 +59,10 @@ describe("QuestionImage — layout", () => {
     expect(img.className).toMatch(/max-w-full/); // cannot overflow the container
   });
 
-  it("compact and option sizes are smaller still", () => {
+  it("compact and option sizes are smaller still, and hug their image instead of spanning the width", () => {
     const { rerender } = render(<QuestionImage src={jpg} alt="d" size="compact" />);
     expect(screen.getByRole("img", { name: "d" }).className).toMatch(/max-h-36/);
+    expect(screen.getByTestId("question-image").className).toMatch(/w-fit/);
     rerender(<QuestionImage src={jpg} alt="d" size="option" />);
     expect(screen.getByRole("img", { name: "d" }).className).toMatch(/max-h-32/);
   });
@@ -93,9 +112,24 @@ describe("QuestionImage — backdrop (blends with the paper, survives dark mode)
     expect(screen.getByTestId("question-image")).toHaveAttribute("data-backdrop", "paper");
   });
 
-  it("JPEGs are never requested with CORS (they cannot be transparent, so there is nothing to inspect)", () => {
-    render(<QuestionImage src={jpg} alt="d" />);
+  it("question images are requested with CORS (JPEGs too) so their pixels can be checked for graph axes", () => {
+    render(<QuestionImage src="https://cors-ok.example.com/a.jpg" alt="d" />);
+    expect(screen.getByRole("img")).toHaveAttribute("crossorigin", "anonymous");
+  });
+
+  it("small images (options, thumbnails) that cannot be transparent are not requested with CORS", () => {
+    render(<QuestionImage src="https://cors-ok.example.com/o.jpg" alt="d" size="option" />);
     expect(screen.getByRole("img")).not.toHaveAttribute("crossorigin");
+  });
+
+  it("a host that refuses CORS is remembered: later images from it skip the failed attempt", () => {
+    const first = render(<QuestionImage src="https://no-cors.example.com/a.jpg" alt="first" />);
+    fireEvent.error(screen.getByRole("img", { name: "first" })); // CORS refused → falls back
+    expect(screen.getByRole("img", { name: "first" })).not.toHaveAttribute("crossorigin");
+    first.unmount();
+
+    render(<QuestionImage src="https://no-cors.example.com/b.jpg" alt="second" />);
+    expect(screen.getByRole("img", { name: "second" })).not.toHaveAttribute("crossorigin");
   });
 
   it("PNG/WebP are first requested with CORS so their transparency can be inspected", () => {

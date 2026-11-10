@@ -2,7 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ImageOff, RefreshCw, X } from "lucide-react";
-import { analyzePixels, chooseBackdrop, mayHaveTransparency, type Backdrop } from "@/lib/content/imageAnalysis";
+import {
+  analyzePixels,
+  chooseBackdrop,
+  detectGraph,
+  mayHaveTransparency,
+  type Backdrop,
+  type ImageKind,
+} from "@/lib/content/imageAnalysis";
 
 type Size = "question" | "compact" | "option";
 
@@ -10,7 +17,7 @@ interface Props {
   src: string;
   alt: string;
   /**
-   * "question" (default): a tidy, modest figure — capped well below the viewport so a diagram never takes over the page.
+   * "question" (default): spans the full width of its container, modest in height.
    * "compact": a small thumbnail (e.g. inside the Sabi dialog).
    * "option": a small image inside an answer option.
    * Every size can be opened full-size with a click or Enter, so labels stay readable.
@@ -18,26 +25,43 @@ interface Props {
   size?: Size;
   /** "auto" inspects PNG/WebP for transparency; otherwise force one. */
   backdrop?: "auto" | Backdrop;
+  /**
+   * "auto" (default) detects graphs/charts, which need more height than a geometry diagram to stay legible.
+   * Pass "graph" or "diagram" to decide explicitly.
+   */
+  kind?: "auto" | ImageKind;
   /** Allow opening the image full-size. On by default. */
   enlargeable?: boolean;
   className?: string;
 }
 
-const MAX_SAMPLE = 48; // analyse a tiny downscaled copy — cheap and enough to judge transparency/ink colour
+const MAX_SAMPLE = 256; // analyse a small downscaled copy — cheap, and big enough that thin axis lines survive the shrink
 
-// Height caps. The width follows the image's own aspect ratio (w-auto), so the white "paper" box hugs the
-// diagram instead of stretching across the whole page with empty white sides.
-const IMG_CLASS: Record<Size, string> = {
-  question: "max-h-[min(36vh,17rem)]",
-  compact: "max-h-36",
-  option: "max-h-32",
+// Height caps. Width follows the image's own aspect ratio (w-auto, never upscaled); a diagram stays compact,
+// while a graph — whose axes, ticks and labels need room — is allowed to be taller. Neither is ever cropped.
+const HEIGHT_CLASS: Record<Size, Record<ImageKind, string>> = {
+  question: { diagram: "max-h-[min(36vh,17rem)]", graph: "max-h-[min(62vh,30rem)]" },
+  compact: { diagram: "max-h-36", graph: "max-h-36" },
+  option: { diagram: "max-h-32", graph: "max-h-32" },
+};
+
+// Origins whose images were refused when requested with CORS. Remembered so later images from the same host
+// don't repeat the failed request before falling back.
+const corsRefused = new Set<string>();
+const originOf = (url: string) => {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return "";
+  }
 };
 
 /**
  * The one component every question, passage, option and explanation image goes through.
  *
- *  - No frame, border or padding: the figure IS the image, so nothing floats. It is as wide as the image
- *    needs (never wider than its container) and modest in height.
+ *  - No frame, border or padding: the figure IS the image, so nothing floats. At the default size the white
+ *    "paper" band spans the full width of the question, with the diagram centred and modest in height;
+ *    graphs and charts get more height.
  *  - Natural aspect ratio (height:auto), never cropped (object-fit: contain) — labels, angles and symbols
  *    are always fully visible, and one click opens the original size.
  *  - White "paper" backdrop, written as a literal colour. The theme layer remaps `bg-white` to the dark
@@ -49,22 +73,28 @@ export default function QuestionImage({
   alt,
   size = "question",
   backdrop = "auto",
+  kind = "auto",
   enlargeable = true,
   className = "",
 }: Props) {
   const [detected, setDetected] = useState<Backdrop>("paper");
+  const [detectedKind, setDetectedKind] = useState<ImageKind>("diagram");
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [open, setOpen] = useState(false);
   // PNG/WebP are first requested with CORS so their pixels can be inspected. If the host doesn't send CORS
   // headers that request fails, so we transparently retry once without it (and skip the inspection).
-  const wantsAnalysis = backdrop === "auto" && mayHaveTransparency(src);
+  // Question images are also inspected for graph axes (JPEGs included), so they need pixel access too.
+  const wantsAnalysis =
+    !corsRefused.has(originOf(src)) &&
+    ((backdrop === "auto" && mayHaveTransparency(src)) || (kind === "auto" && size === "question"));
   const [cors, setCors] = useState(wantsAnalysis);
   const imgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
     setFailed(false);
     setDetected("paper");
+    setDetectedKind("diagram");
     setCors(wantsAnalysis);
   }, [src, wantsAnalysis, attempt]);
 
@@ -81,18 +111,24 @@ export default function QuestionImage({
       const ctx = canvas.getContext("2d", { willReadFrequently: true });
       if (!ctx) return;
       ctx.drawImage(img, 0, 0, w, h);
-      setDetected(chooseBackdrop(analyzePixels(ctx.getImageData(0, 0, w, h).data)));
+      const { data } = ctx.getImageData(0, 0, w, h);
+      if (backdrop === "auto") setDetected(chooseBackdrop(analyzePixels(data)));
+      if (kind === "auto" && size === "question") setDetectedKind(detectGraph(data, w, h) ? "graph" : "diagram");
     } catch {
       // Canvas tainted (no CORS) or unreadable: keep the safe default — white paper.
     }
   }
 
   function onError() {
-    if (cors) setCors(false); // retry without CORS before declaring the image broken
+    if (cors) {
+      corsRefused.add(originOf(src)); // this host doesn't send CORS headers: remember, and don't ask again
+      setCors(false); // retry without CORS before declaring the image broken
+    }
     else setFailed(true);
   }
 
   const mode: Backdrop = backdrop === "auto" ? detected : backdrop;
+  const imageKind: ImageKind = kind === "auto" ? detectedKind : kind;
   const bg = mode === "paper" ? "bg-[#ffffff]" : "bg-transparent";
 
   if (failed) {
@@ -125,7 +161,7 @@ export default function QuestionImage({
       crossOrigin={cors ? "anonymous" : undefined}
       onLoad={inspect}
       onError={onError}
-      className={`block h-auto w-auto max-w-full object-contain ${IMG_CLASS[size]}`}
+      className={`mx-auto block h-auto w-auto max-w-full object-contain ${HEIGHT_CLASS[size][imageKind]}`}
     />
   );
 
@@ -134,14 +170,15 @@ export default function QuestionImage({
       <figure
         data-testid="question-image"
         data-backdrop={mode}
-        className={`m-0 w-fit max-w-full overflow-hidden rounded-lg ${bg} ${className}`}>
+        data-kind={imageKind}
+        className={`m-0 max-w-full overflow-hidden rounded-lg ${size === "question" ? "w-full" : "w-fit"} ${bg} ${className}`}>
         {enlargeable ? (
           <button
             type="button"
             onClick={() => setOpen(true)}
             aria-label={`View larger: ${alt}`}
             title="Click to view larger"
-            className="block cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700">
+            className="block w-full cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700">
             {img}
           </button>
         ) : (
