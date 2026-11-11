@@ -61,7 +61,9 @@ describe("RenderMarkdown — inline", () => {
     const { container } = show("Equation:\n\n\\[\n\nx^2 + 1\n\n\\]\n\nDone");
     const block = container.querySelector('[data-math="display"]');
     expect(block).not.toBeNull();
-    expect(block?.querySelector('annotation[encoding="application/x-tex"]')?.textContent).toBe("x^2 + 1");
+    expect(block?.querySelector('annotation[encoding="application/x-tex"]')?.textContent).toBe(
+      "x^2 + 1",
+    );
     expect(block?.querySelector(".katex-mathml msup")).not.toBeNull(); // typeset, not raw text
   });
 
@@ -76,5 +78,53 @@ describe("RenderMarkdown — inline", () => {
     const { container } = show("Equation: \n\\[\nx^2");
     expect(container.querySelector('[data-math="display"]')).toBeNull();
     expect(container.textContent).toContain("x^2");
+  });
+});
+
+describe("RenderMarkdown — quotes and layout modes", () => {
+  const render2 = (md: string, opts?: Parameters<typeof renderMarkdown>[1]) =>
+    render(<div>{renderMarkdown(md, opts)}</div>).container;
+
+  it("renders consecutive '>' lines as ONE blockquote and strips the markers", () => {
+    const c = render2("Intro\n\n> step one\n> step two\n\nAfter");
+    expect(c.querySelectorAll("blockquote")).toHaveLength(1);
+    expect(c.querySelector("blockquote")?.textContent).toBe("step onestep two");
+    expect(c.textContent).not.toContain(">");
+  });
+
+  it("a blank line between quoted groups makes two quotes", () => {
+    expect(render2("> a\n\n> b").querySelectorAll("blockquote")).toHaveLength(2);
+  });
+
+  it("each quoted line is its own paragraph (steps are not run together)", () => {
+    const c = render2("> one\n> two\n> three");
+    expect(c.querySelectorAll("blockquote p")).toHaveLength(3);
+  });
+
+  it("supports bold, lists and maths inside a quote", () => {
+    const c = render2("> **Note:** use \\(x^2\\)\n> - first\n> - second");
+    expect(c.querySelector("blockquote strong")?.textContent).toBe("Note:");
+    expect(c.querySelector("blockquote .katex")).not.toBeNull();
+    expect(c.querySelectorAll("blockquote li")).toHaveLength(2);
+  });
+
+  it("a '>' in the middle of a line is just text", () => {
+    const c = render2("if a > b then c");
+    expect(c.querySelector("blockquote")).toBeNull();
+    expect(c.textContent).toBe("if a > b then c");
+  });
+
+  it("COMPACT (the default, used by the tutor chat) keeps its tight spacing and ignores bold-only titles", () => {
+    const c = render2("**Title**\n\nSome text\n\n- a\n- b");
+    expect(c.querySelector('[role="heading"]')).toBeNull();
+    expect(c.querySelector("p")?.className).toMatch(/my-1\b/);
+    expect(c.querySelector("ul")?.className).toMatch(/space-y-0\.5/);
+  });
+
+  it("SPACIOUS opts in to roomy paragraphs, lists and bold-only section titles", () => {
+    const c = render2("**Title**\n\nSome text\n\n- a\n- b", { spacious: true });
+    expect(c.querySelector('[role="heading"]')?.textContent).toBe("Title");
+    expect(c.querySelectorAll("p")[1]?.className).toMatch(/my-3/);
+    expect(c.querySelector("ul")?.className).toMatch(/space-y-2/);
   });
 });

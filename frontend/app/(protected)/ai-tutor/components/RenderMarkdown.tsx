@@ -5,8 +5,9 @@ import MathSpan from "@/Components/content/MathSpan";
 /* ─────────────────────────────────────────────────────────
    MARKDOWN RENDERER FOR TUTOR MESSAGES
    Block level : headings, paragraphs, bullet / numbered / nested lists,
-                 tables, horizontal rules, fenced code, display maths
-                 (\[ … \] and $$ … $$).
+                 > block quotes, tables, horizontal rules, fenced code,
+                 display maths (\[ … \] and $$ … $$). A line that is only
+                 **bold** is treated as a sub-heading.
    Inline      : **bold**, *italic*, `code`, inline maths (\( … \) and
                  $ … $), and app-internal [links](/path).
    It also repairs the odd line breaks some models produce, e.g. a list
@@ -52,7 +53,10 @@ function inline(text: string): React.ReactNode {
     const link = part.match(INTERNAL_LINK);
     if (link) {
       return (
-        <Link key={i} href={link[2]} className="font-semibold text-green-700 underline underline-offset-2 hover:text-green-800">
+        <Link
+          key={i}
+          href={link[2]}
+          className="font-semibold text-green-700 underline underline-offset-2 hover:text-green-800">
           {link[1]}
         </Link>
       );
@@ -74,13 +78,27 @@ function inline(text: string): React.ReactNode {
     }
     if (part.length > 2 && part.startsWith("`") && part.endsWith("`")) {
       return (
-        <code key={i} className="bg-green-800/[0.08] rounded px-1 py-px text-[0.9em] font-mono text-green-800">
+        <code
+          key={i}
+          className="bg-green-800/[0.08] rounded px-1 py-px text-[0.9em] font-mono text-green-800">
           {part.slice(1, -1)}
         </code>
       );
     }
     return part;
   });
+}
+
+/* ── options ──────────────────────────────────────────── */
+
+export interface MarkdownOptions {
+  /**
+   * Roomy layout for explanations, model answers and feedback that people READ (generous paragraph, list and
+   * heading spacing). Off by default: chat bubbles keep the compact spacing they were designed with.
+   */
+  spacious?: boolean;
+  /** Inside a quote: every line is its own step (worked solutions) instead of being run together. */
+  stepLines?: boolean;
 }
 
 /* ── line patterns ────────────────────────────────────── */
@@ -93,6 +111,9 @@ const ORPHAN_MARKER = /^\s*(?:\d+[.)]|[•\-*])\s*$/;
 const TABLE_ROW = /^\s*\|/;
 const TABLE_SEPARATOR = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
 const DISPLAY_OPEN = /^\s*(\\\[|\$\$)/;
+const BLOCKQUOTE = /^\s{0,3}>\s?(.*)$/;
+// A line that is nothing but one bold phrase ("**How to improve**", "**Step 1:**") is a section title.
+const BOLD_ONLY = /^\s*\*\*([^*]+?)\*\*\s*:?\s*$/;
 
 const HEADING_SIZES: Record<number, string> = {
   1: "text-[19px]",
@@ -110,7 +131,8 @@ function startsNewBlock(line: string): boolean {
     FENCE.test(line) ||
     TABLE_ROW.test(line) ||
     LIST_ITEM.test(line) ||
-    DISPLAY_OPEN.test(line)
+    DISPLAY_OPEN.test(line) ||
+    BLOCKQUOTE.test(line)
   );
 }
 
@@ -126,7 +148,13 @@ function normalize(src: string): string[] {
     if (ORPHAN_MARKER.test(line)) {
       let j = i + 1;
       while (j < raw.length && !raw[j].trim()) j++;
-      if (j < raw.length && !HEADING.test(raw[j]) && !HR.test(raw[j]) && !TABLE_ROW.test(raw[j]) && !ORPHAN_MARKER.test(raw[j])) {
+      if (
+        j < raw.length &&
+        !HEADING.test(raw[j]) &&
+        !HR.test(raw[j]) &&
+        !TABLE_ROW.test(raw[j]) &&
+        !ORPHAN_MARKER.test(raw[j])
+      ) {
         out.push(`${line.trim()} ${raw[j].trim()}`);
         i = j;
         continue;
@@ -168,11 +196,23 @@ interface ListData {
  */
 function buildList(entries: Entry[]): ListData {
   const first = entries[0];
-  const root: ListData = { ordered: first.ordered, start: first.num, indent: first.indent, heuristic: false, items: [] };
+  const root: ListData = {
+    ordered: first.ordered,
+    start: first.num,
+    indent: first.indent,
+    heuristic: false,
+    items: [],
+  };
   const stack: ListData[] = [root];
 
   const nest = (e: Entry, parent: Item, heuristic: boolean) => {
-    const child: ListData = { ordered: e.ordered, start: e.num, indent: e.indent, heuristic, items: [] };
+    const child: ListData = {
+      ordered: e.ordered,
+      start: e.num,
+      indent: e.indent,
+      heuristic,
+      items: [],
+    };
     parent.lists.push(child);
     stack.push(child);
   };
@@ -203,7 +243,12 @@ function buildList(entries: Entry[]): ListData {
         const parentList = stack[stack.length - 2];
         const parentLast = parentList.items[parentList.items.length - 1];
         const kindChanged = top.ordered !== e.ordered;
-        const resumesParent = e.ordered && parentList.ordered && !!parentLast && e.num === parentLast.num + 1 && e.num !== lastNum + 1;
+        const resumesParent =
+          e.ordered &&
+          parentList.ordered &&
+          !!parentLast &&
+          e.num === parentLast.num + 1 &&
+          e.num !== lastNum + 1;
         if (kindChanged || resumesParent) {
           stack.pop();
           continue;
@@ -216,19 +261,23 @@ function buildList(entries: Entry[]): ListData {
   return root;
 }
 
-function renderList(list: ListData, key: React.Key): React.ReactNode {
+function renderList(list: ListData, key: React.Key, spacious = false): React.ReactNode {
   const items = list.items.map((it, i) => (
-    <li key={i} className="pl-1 leading-relaxed">
+    <li key={i} className={`pl-1 ${spacious ? "leading-7" : "leading-relaxed"}`}>
       {inline(it.text)}
-      {it.lists.map((l, j) => renderList(l, j))}
+      {it.lists.map((l, j) => renderList(l, j, spacious))}
     </li>
   ));
+  const gap = spacious ? "my-3 space-y-2" : "my-1 space-y-0.5";
   return list.ordered ? (
-    <ol key={key} start={list.start} className="my-1 list-decimal space-y-0.5 pl-6 marker:font-bold marker:text-green-600">
+    <ol
+      key={key}
+      start={list.start}
+      className={`${gap} list-decimal pl-6 marker:font-bold marker:text-green-600`}>
       {items}
     </ol>
   ) : (
-    <ul key={key} className="my-1 list-disc space-y-0.5 pl-6 marker:text-green-500">
+    <ul key={key} className={`${gap} list-disc pl-6 marker:text-green-500`}>
       {items}
     </ul>
   );
@@ -252,7 +301,11 @@ function alignOf(cell: string): "left" | "center" | "right" {
 
 /* ── main ─────────────────────────────────────────────── */
 
-export default function renderMarkdown(text: string): React.ReactNode[] {
+export default function renderMarkdown(
+  text: string,
+  opts: MarkdownOptions = {},
+): React.ReactNode[] {
+  const { spacious = false, stepLines = false } = opts;
   const lines = normalize(text);
   const nodes: React.ReactNode[] = [];
   let key = 0;
@@ -273,7 +326,9 @@ export default function renderMarkdown(text: string): React.ReactNode[] {
       while (i < lines.length && !FENCE.test(lines[i])) body.push(lines[i++]);
       i++; // closing fence (or end of text while streaming)
       nodes.push(
-        <pre key={key++} className="my-2 overflow-x-auto rounded-xl bg-green-900/[0.06] p-3 text-[13px] leading-relaxed">
+        <pre
+          key={key++}
+          className="my-2 overflow-x-auto rounded-xl bg-green-900/[0.06] p-3 text-[13px] leading-relaxed">
           <code className="font-mono text-green-900">{body.join("\n")}</code>
         </pre>,
       );
@@ -300,9 +355,7 @@ export default function renderMarkdown(text: string): React.ReactNode[] {
         buf += "\n" + lines[j];
       }
       if (closed) {
-        nodes.push(
-          <MathSpan key={key++} tex={buf.trim()} display />,
-        );
+        nodes.push(<MathSpan key={key++} tex={buf.trim()} display />);
         i = j + 1;
         continue;
       }
@@ -327,8 +380,42 @@ export default function renderMarkdown(text: string): React.ReactNode[] {
           key={key++}
           role="heading"
           aria-level={Math.min(6, level + 2)}
-          className={`font-serif ${HEADING_SIZES[level]} mt-3 mb-1 font-normal text-green-900`}>
+          className={`font-serif ${HEADING_SIZES[level]} ${spacious ? "mt-6 mb-2 first:mt-0" : "mt-3 mb-1"} font-normal text-green-900`}>
           {inline(heading[2])}
+        </p>,
+      );
+      i++;
+      continue;
+    }
+
+    /* Block quote: consecutive "> …" lines. Rendered as a quote card; its content is parsed again, so maths,
+       bold and lists inside a quote work, and each line stays its own step. */
+    if (BLOCKQUOTE.test(line)) {
+      const quoted: string[] = [];
+      while (i < lines.length && BLOCKQUOTE.test(lines[i])) {
+        quoted.push((lines[i].match(BLOCKQUOTE) as RegExpMatchArray)[1]);
+        i++;
+      }
+      nodes.push(
+        <blockquote
+          key={key++}
+          className="my-4 rounded-r-xl border-l-4 border-green-500 bg-green-50/70 px-4 py-3 text-gray-800 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+          {renderMarkdown(quoted.join("\n"), { spacious, stepLines: true })}
+        </blockquote>,
+      );
+      continue;
+    }
+
+    /* A line that is only bold = a section title (spacious layout) */
+    const boldTitle = spacious ? line.match(BOLD_ONLY) : null;
+    if (boldTitle) {
+      nodes.push(
+        <p
+          key={key++}
+          role="heading"
+          aria-level={5}
+          className="mt-6 mb-2 text-[15px] font-bold tracking-tight text-green-900 first:mt-0">
+          {inline(boldTitle[1].trim())}
         </p>,
       );
       i++;
@@ -363,7 +450,10 @@ export default function renderMarkdown(text: string): React.ReactNode[] {
               <thead className="bg-green-800/[0.08]">
                 <tr>
                   {head.map((c, ci) => (
-                    <th key={ci} style={{ textAlign: aligns[ci] ?? "left" }} className="border-b border-green-900/10 px-3 py-2 font-bold text-green-900">
+                    <th
+                      key={ci}
+                      style={{ textAlign: aligns[ci] ?? "left" }}
+                      className="border-b border-green-900/10 px-3 py-2 font-bold text-green-900">
                       {inline(c)}
                     </th>
                   ))}
@@ -373,7 +463,10 @@ export default function renderMarkdown(text: string): React.ReactNode[] {
                 {body.map((r, ri) => (
                   <tr key={ri} className="border-b border-green-900/10 last:border-b-0 align-top">
                     {head.map((_, ci) => (
-                      <td key={ci} style={{ textAlign: aligns[ci] ?? "left" }} className="px-3 py-2">
+                      <td
+                        key={ci}
+                        style={{ textAlign: aligns[ci] ?? "left" }}
+                        className="px-3 py-2">
                         {inline(r[ci] ?? "")}
                       </td>
                     ))}
@@ -398,7 +491,12 @@ export default function renderMarkdown(text: string): React.ReactNode[] {
         if (m && !HR.test(lines[j])) {
           const marker = m[2];
           const ordered = /\d/.test(marker);
-          entries.push({ indent: m[1].length, ordered, num: ordered ? parseInt(marker, 10) : 0, text: m[3] });
+          entries.push({
+            indent: m[1].length,
+            ordered,
+            num: ordered ? parseInt(marker, 10) : 0,
+            text: m[3],
+          });
           j++;
           continue;
         }
@@ -411,7 +509,7 @@ export default function renderMarkdown(text: string): React.ReactNode[] {
         break;
       }
       if (entries.length > 0) {
-        nodes.push(renderList(buildList(entries), key++));
+        nodes.push(renderList(buildList(entries), key++, spacious));
         i = j;
         continue;
       }
@@ -421,8 +519,19 @@ export default function renderMarkdown(text: string): React.ReactNode[] {
     const para: string[] = [line];
     i++;
     while (i < lines.length && lines[i].trim() && !startsNewBlock(lines[i])) para.push(lines[i++]);
+    if (stepLines) {
+      // Worked solutions: one line per step, each with room to breathe.
+      para.forEach((l) =>
+        nodes.push(
+          <p key={key++} className="my-2 leading-7">
+            {inline(l.trim())}
+          </p>,
+        ),
+      );
+      continue;
+    }
     nodes.push(
-      <p key={key++} className="my-1 leading-relaxed">
+      <p key={key++} className={spacious ? "my-3 leading-7" : "my-1 leading-relaxed"}>
         {para.map((l, li) => (
           <React.Fragment key={li}>
             {li > 0 && <br />}

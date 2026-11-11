@@ -18,7 +18,9 @@ describe("MathSpan — typesetting", () => {
     expect(mathml(container)).not.toBeNull();
     expect(container.querySelector(".katex-html")?.getAttribute("aria-hidden")).toBe("true");
     // The original TeX travels along as an annotation, so the structure is recoverable.
-    expect(container.querySelector('annotation[encoding="application/x-tex"]')?.textContent).toBe("x^2");
+    expect(container.querySelector('annotation[encoding="application/x-tex"]')?.textContent).toBe(
+      "x^2",
+    );
   });
 
   it.each([
@@ -71,14 +73,22 @@ describe("MathSpan — typesetting", () => {
   });
 
   it("inline math flows with the text", () => {
-    const { container } = render(<p>so <MathSpan tex="x" /> here</p>);
+    const { container } = render(
+      <p>
+        so <MathSpan tex="x" /> here
+      </p>,
+    );
     expect(container.querySelector('span[data-math="inline"]')).not.toBeNull();
   });
 });
 
 describe("MathSpan — safety", () => {
   it("never emits a link or image from \\href / \\url / \\includegraphics (trust is off)", () => {
-    for (const tex of ["\\href{javascript:alert(1)}{click}", "\\url{https://evil.example}", "\\includegraphics{https://evil.example/x.png}"]) {
+    for (const tex of [
+      "\\href{javascript:alert(1)}{click}",
+      "\\url{https://evil.example}",
+      "\\includegraphics{https://evil.example/x.png}",
+    ]) {
       const html = renderTex(tex, false);
       expect(html).not.toMatch(/<a[\s>]/i);
       expect(html).not.toMatch(/<img/i);
@@ -105,7 +115,9 @@ describe("MathSpan — safety", () => {
 
 describe("MathText — stems, options and short text", () => {
   it("typesets the reported legacy fraction inside the sentence and keeps the words as text", () => {
-    const { container } = render(<MathText text="The expression (5x + 3)/[6x(x + 1)] will be undefined when x equals" />);
+    const { container } = render(
+      <MathText text="The expression (5x + 3)/[6x(x + 1)] will be undefined when x equals" />,
+    );
     expect(container.querySelector(".mfrac")).not.toBeNull();
     expect(container.textContent).toContain("will be undefined when x equals");
     expect(container.textContent).not.toContain("(5x + 3)/[6x(x + 1)]"); // no longer shown as raw text
@@ -122,7 +134,9 @@ describe("MathText — stems, options and short text", () => {
   });
 
   it("legacyMath off: plain text with carets stays plain (AI replies and comments use explicit delimiters)", () => {
-    const { container } = render(<MathText legacyMath={false} text="Use x^2 and (a+1)/(b+2) literally" />);
+    const { container } = render(
+      <MathText legacyMath={false} text="Use x^2 and (a+1)/(b+2) literally" />,
+    );
     expect(container.querySelector(".katex")).toBeNull();
     expect(container.textContent).toBe("Use x^2 and (a+1)/(b+2) literally");
   });
@@ -180,7 +194,9 @@ describe("RichContent — explanations, model answers, AI replies", () => {
   });
 
   it("stored explanations get legacy maths upgraded when asked", () => {
-    const { container } = render(<RichContent legacyMath text="Factorise (x^2 - 1)/(x - 1) to get x + 1." />);
+    const { container } = render(
+      <RichContent legacyMath text="Factorise (x^2 - 1)/(x - 1) to get x + 1." />,
+    );
     expect(container.querySelector(".mfrac")).not.toBeNull();
   });
 
@@ -197,5 +213,95 @@ describe("RichContent — explanations, model answers, AI replies", () => {
 
   it("renders nothing for empty content", () => {
     expect(render(<RichContent text="   " />).container).toBeEmptyDOMElement();
+  });
+});
+
+// ── Layout of long AI explanations (the theory feedback shown in the Sabi dialog) ──
+
+const THEORY_FEEDBACK = [
+  "**How to improve**",
+  "- Whenever you claim two angles are equal, add a brief justification.",
+  "- Mention the “right-angle in a semicircle” explicitly.",
+  "",
+  "**What a stronger answer would contain**",
+  "A concise version could read:",
+  "",
+  "> Since \\(AB\\) is tangent at \\(A\\), \\(OA \\perp AB\\) so \\(\\angle OAB = 90^\\circ\\).",
+  "> Because \\(CD \\parallel AB\\), \\(\\angle OCD = \\angle ABC = 40^\\circ\\).",
+  "> Hence \\(\\angle COD = 180^\\circ - 2\\cdot 40^\\circ = 100^\\circ\\).",
+  "> \\(\\angle ODE = \\frac{180^\\circ-80^\\circ}{2} = 50^\\circ\\).",
+  "",
+  "**Re-written weakest sentence**",
+  "Original: “Since \\(CD\\) is a straight line.”",
+  "Improved:",
+  "> “Because \\(CD \\parallel AB\\) …”",
+  "",
+  "Keep up the good work!",
+].join("\n");
+
+describe("RichContent — long structured explanations are laid out, not crammed", () => {
+  const view = () => render(<RichContent text={THEORY_FEEDBACK} />).container;
+
+  it("turns '> …' lines into a proper quote block instead of showing the '>' characters", () => {
+    const c = view();
+    const quotes = c.querySelectorAll("blockquote");
+    expect(quotes).toHaveLength(2);
+    // No leading "> " left in the visible text of any step.
+    const clone = c.cloneNode(true) as HTMLElement;
+    clone.querySelectorAll(".katex").forEach((n) => n.remove());
+    expect(clone.textContent).not.toMatch(/(^|\s)>\s/);
+    expect(clone.textContent).not.toContain("&gt;");
+  });
+
+  it("keeps each worked step on its own line, as its own spaced paragraph inside the quote", () => {
+    const quote = view().querySelector("blockquote")!;
+    const steps = quote.querySelectorAll("p");
+    expect(steps).toHaveLength(4);
+    for (const p of Array.from(steps)) expect(p.className).toMatch(/my-2/);
+    expect(quote.querySelectorAll(".katex").length).toBeGreaterThanOrEqual(8); // maths inside the quote is typeset
+    expect(quote.querySelector(".mfrac")).not.toBeNull();
+  });
+
+  it("the quote reads as a distinct block: accent border, tint, padding and surrounding space", () => {
+    const quote = view().querySelector("blockquote")!;
+    expect(quote.className).toMatch(/border-l-4/);
+    expect(quote.className).toMatch(/bg-green-50/);
+    expect(quote.className).toMatch(/\bpx-4\b/);
+    expect(quote.className).toMatch(/\bmy-4\b/);
+  });
+
+  it("bold-only lines become real section headings with space above them", () => {
+    const headings = Array.from(view().querySelectorAll('[role="heading"]'));
+    expect(headings.map((h) => h.textContent)).toEqual([
+      "How to improve",
+      "What a stronger answer would contain",
+      "Re-written weakest sentence",
+    ]);
+    for (const h of headings.slice(1)) expect(h.className).toMatch(/mt-6/);
+    expect(headings[0].getAttribute("aria-level")).toBe("5");
+  });
+
+  it("paragraphs and lists use the roomy spacing", () => {
+    const c = view();
+    const para = Array.from(c.querySelectorAll("p")).find((p) =>
+      p.textContent?.startsWith("A concise version"),
+    )!;
+    expect(para.className).toMatch(/my-3/);
+    expect(para.className).toMatch(/leading-7/);
+    const list = c.querySelector("ul")!;
+    expect(list.className).toMatch(/space-y-2/);
+    expect(list.className).toMatch(/my-3/);
+  });
+
+  it("bold in the middle of a sentence is still just bold, not a heading", () => {
+    const { container } = render(<RichContent text={"This is **important** and **key**."} />);
+    expect(container.querySelector('[role="heading"]')).toBeNull();
+    expect(container.querySelectorAll("strong")).toHaveLength(2);
+  });
+
+  it("leaves no stray margin above the first block or below the last", () => {
+    const c = view();
+    expect((c.firstElementChild as HTMLElement).className).toMatch(/\[&>\*:first-child\]:!mt-0/);
+    expect((c.firstElementChild as HTMLElement).className).toMatch(/\[&>\*:last-child\]:!mb-0/);
   });
 });
