@@ -11,6 +11,7 @@ import { AiModule } from 'src/ai/ai.module';
 import { NotificationsModule } from 'src/notifications/notifications.module';
 import { EntitlementsModule } from 'src/entitlements/entitlements.module';
 import { ExamsService } from './exams.service';
+import { SessionScoreBackfillService } from './session-score-backfill.service';
 import { ExamsController } from './exams.controller';
 
 @Module({
@@ -23,7 +24,7 @@ import { ExamsController } from './exams.controller';
     EntitlementsModule,
   ],
   controllers: [ExamsController],
-  providers: [ExamsService],
+  providers: [ExamsService, SessionScoreBackfillService],
   exports: [ExamsService],
 })
 export class ExamsModule {}

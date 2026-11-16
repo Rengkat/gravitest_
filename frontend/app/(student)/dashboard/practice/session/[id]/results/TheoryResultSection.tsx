@@ -20,6 +20,7 @@ import ExplainWithAiButton from "@/Components/shared/ExplainWithAiButton";
 import RichContent from "@/Components/content/RichContent";
 import MathText from "@/Components/content/MathText";
 import QuestionImage from "@/Components/content/QuestionImage";
+import StudentAnswerText from "@/Components/content/StudentAnswerText";
 import { explainMcqQuestion } from "@/lib/api/aiExplain";
 import { regradeAnswer } from "@/lib/api/exams";
 import { extractErrorMessage } from "@/lib/api/client";
@@ -202,7 +203,7 @@ export default function TheoryResultSection({
                 <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3">
                   <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-gray-700">Your answer</p>
                   {studentText.trim() ? (
-                    <p className="whitespace-pre-wrap text-[13px] text-gray-900">{studentText}</p>
+                    <StudentAnswerText text={studentText} className="!text-[13px] text-gray-900" />
                   ) : studentImageUrls.length === 0 ? (
                     <p className="text-[13px] italic text-gray-700">No answer was given for this part.</p>
                   ) : null}

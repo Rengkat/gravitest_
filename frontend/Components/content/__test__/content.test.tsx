@@ -18,9 +18,7 @@ describe("MathSpan — typesetting", () => {
     expect(mathml(container)).not.toBeNull();
     expect(container.querySelector(".katex-html")?.getAttribute("aria-hidden")).toBe("true");
     // The original TeX travels along as an annotation, so the structure is recoverable.
-    expect(container.querySelector('annotation[encoding="application/x-tex"]')?.textContent).toBe(
-      "x^2",
-    );
+    expect(container.querySelector('annotation[encoding="application/x-tex"]')?.textContent).toBe("x^2");
   });
 
   it.each([
@@ -73,22 +71,14 @@ describe("MathSpan — typesetting", () => {
   });
 
   it("inline math flows with the text", () => {
-    const { container } = render(
-      <p>
-        so <MathSpan tex="x" /> here
-      </p>,
-    );
+    const { container } = render(<p>so <MathSpan tex="x" /> here</p>);
     expect(container.querySelector('span[data-math="inline"]')).not.toBeNull();
   });
 });
 
 describe("MathSpan — safety", () => {
   it("never emits a link or image from \\href / \\url / \\includegraphics (trust is off)", () => {
-    for (const tex of [
-      "\\href{javascript:alert(1)}{click}",
-      "\\url{https://evil.example}",
-      "\\includegraphics{https://evil.example/x.png}",
-    ]) {
+    for (const tex of ["\\href{javascript:alert(1)}{click}", "\\url{https://evil.example}", "\\includegraphics{https://evil.example/x.png}"]) {
       const html = renderTex(tex, false);
       expect(html).not.toMatch(/<a[\s>]/i);
       expect(html).not.toMatch(/<img/i);
@@ -115,9 +105,7 @@ describe("MathSpan — safety", () => {
 
 describe("MathText — stems, options and short text", () => {
   it("typesets the reported legacy fraction inside the sentence and keeps the words as text", () => {
-    const { container } = render(
-      <MathText text="The expression (5x + 3)/[6x(x + 1)] will be undefined when x equals" />,
-    );
+    const { container } = render(<MathText text="The expression (5x + 3)/[6x(x + 1)] will be undefined when x equals" />);
     expect(container.querySelector(".mfrac")).not.toBeNull();
     expect(container.textContent).toContain("will be undefined when x equals");
     expect(container.textContent).not.toContain("(5x + 3)/[6x(x + 1)]"); // no longer shown as raw text
@@ -134,9 +122,7 @@ describe("MathText — stems, options and short text", () => {
   });
 
   it("legacyMath off: plain text with carets stays plain (AI replies and comments use explicit delimiters)", () => {
-    const { container } = render(
-      <MathText legacyMath={false} text="Use x^2 and (a+1)/(b+2) literally" />,
-    );
+    const { container } = render(<MathText legacyMath={false} text="Use x^2 and (a+1)/(b+2) literally" />);
     expect(container.querySelector(".katex")).toBeNull();
     expect(container.textContent).toBe("Use x^2 and (a+1)/(b+2) literally");
   });
@@ -194,9 +180,7 @@ describe("RichContent — explanations, model answers, AI replies", () => {
   });
 
   it("stored explanations get legacy maths upgraded when asked", () => {
-    const { container } = render(
-      <RichContent legacyMath text="Factorise (x^2 - 1)/(x - 1) to get x + 1." />,
-    );
+    const { container } = render(<RichContent legacyMath text="Factorise (x^2 - 1)/(x - 1) to get x + 1." />);
     expect(container.querySelector(".mfrac")).not.toBeNull();
   });
 
@@ -283,9 +267,7 @@ describe("RichContent — long structured explanations are laid out, not crammed
 
   it("paragraphs and lists use the roomy spacing", () => {
     const c = view();
-    const para = Array.from(c.querySelectorAll("p")).find((p) =>
-      p.textContent?.startsWith("A concise version"),
-    )!;
+    const para = Array.from(c.querySelectorAll("p")).find((p) => p.textContent?.startsWith("A concise version"))!;
     expect(para.className).toMatch(/my-3/);
     expect(para.className).toMatch(/leading-7/);
     const list = c.querySelector("ul")!;
@@ -303,5 +285,67 @@ describe("RichContent — long structured explanations are laid out, not crammed
     const c = view();
     expect((c.firstElementChild as HTMLElement).className).toMatch(/\[&>\*:first-child\]:!mt-0/);
     expect((c.firstElementChild as HTMLElement).className).toMatch(/\[&>\*:last-child\]:!mb-0/);
+  });
+});
+
+// ── A student's typed answer ────────────────────────────────────────────
+
+import StudentAnswerText from "../StudentAnswerText";
+
+describe("StudentAnswerText — answers shown as the student meant them", () => {
+  it("typesets equations the student built or wrote, instead of showing raw \\( … \\)", () => {
+    const { container } = render(<StudentAnswerText text={"The value of \\(m = 30\\).\n\\(\\frac{m}{170+m} = 0.15\\)"} />);
+    expect(container.querySelectorAll(".katex").length).toBe(2);
+    expect(container.querySelector(".mfrac")).not.toBeNull();
+    const clone = container.cloneNode(true) as HTMLElement;
+    clone.querySelectorAll(".katex").forEach((n) => n.remove());
+    expect(clone.textContent).not.toContain("\\(");
+    expect(clone.textContent).not.toContain("\\frac");
+  });
+
+  it("shows $$…$$ the way students type it by hand", () => {
+    const { container } = render(<StudentAnswerText text={"$$m = \\frac{25.5}{0.85} = 30$$"} />);
+    expect(container.querySelector('[data-math="display"] .mfrac')).not.toBeNull();
+  });
+
+  it("keeps every line break of the working", () => {
+    const { container } = render(<StudentAnswerText text={"1. Let N be the total\n2. Add the frequencies\nTotal = 170 + m"} />);
+    expect(container.firstElementChild?.className).toMatch(/whitespace-pre-line/);
+    expect(container.textContent).toBe("1. Let N be the total\n2. Add the frequencies\nTotal = 170 + m");
+  });
+
+  it("applies the editor's bold, italic and underline", () => {
+    const { container } = render(<StudentAnswerText text={"**final** *answer* __here__"} />);
+    expect(container.querySelector("strong")?.textContent).toBe("final");
+    expect(container.querySelector("em")?.textContent).toBe("answer");
+    expect(container.querySelector("u")?.textContent).toBe("here");
+  });
+
+  it("never rewrites what the student typed: multiplication, carets and fractions stay as written", () => {
+    const typed = "2 * 3 = 6, x^2 and (a+1)/(b+2) and m/(170+m)=0.15";
+    const { container } = render(<StudentAnswerText text={typed} />);
+    expect(container.querySelector(".katex")).toBeNull();
+    expect(container.textContent).toBe(typed);
+  });
+
+  it("a broken equation shows as text instead of breaking the page", () => {
+    expect(() => render(<StudentAnswerText text={"oops \\(\\frac{1\\) done"} />)).not.toThrow();
+  });
+
+  it("renders nothing for an empty answer", () => {
+    expect(render(<StudentAnswerText text="" />).container).toBeEmptyDOMElement();
+  });
+});
+
+describe("MathText markup option", () => {
+  it("markup is OFF by default, so asterisks in question text are never reinterpreted", () => {
+    const { container } = render(<MathText text="Use **bold** here" legacyMath={false} />);
+    expect(container.querySelector("strong")).toBeNull();
+    expect(container.textContent).toBe("Use **bold** here");
+  });
+
+  it("markup can be switched on", () => {
+    const { container } = render(<MathText text="Use **bold** here" legacyMath={false} markup />);
+    expect(container.querySelector("strong")?.textContent).toBe("bold");
   });
 });

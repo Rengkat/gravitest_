@@ -97,6 +97,17 @@ export class ExamSession {
   @Column({ type: 'int', default: 0 })
   questionsSkipped!: number;
 
+  /**
+   * Marks earned and marks available (an objective question = 1 point, a theory/practical question = its
+   * marks). `percentage` is derived from these. Null on sessions saved before marks-based scoring existed;
+   * those fall back to the old questionsCorrect ÷ totalQuestions until they are recalculated.
+   */
+  @Column({ type: 'float', nullable: true })
+  scorePoints: number | null;
+
+  @Column({ type: 'float', nullable: true })
+  maxPoints: number | null;
+
   @Column({ type: 'float', default: 0 })
   percentage!: number;
 
@@ -114,6 +125,8 @@ export class ExamSession {
         total: number;
         correct: number;
         score: number;
+        points?: number;
+        maxPoints?: number;
       }[]
     | null;
 
@@ -124,6 +137,8 @@ export class ExamSession {
         score: number;
         total: number;
         percentage: number;
+        points?: number;
+        maxPoints?: number;
       }[]
     | null;
 
@@ -167,10 +182,13 @@ export class ExamSession {
   }
 
   private calculateScores(): void {
+    // Marks-based when available (so partial credit on theory counts); legacy count-based otherwise.
     this.percentage =
-      this.totalQuestions > 0
-        ? (this.questionsCorrect / this.totalQuestions) * 100
-        : 0;
+      this.scorePoints != null && this.maxPoints != null && this.maxPoints > 0
+        ? (this.scorePoints / this.maxPoints) * 100
+        : this.totalQuestions > 0
+          ? (this.questionsCorrect / this.totalQuestions) * 100
+          : 0;
 
     this.scaledScore = this.examType
       ? this.getScaledScore(this.percentage)

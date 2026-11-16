@@ -30,10 +30,10 @@ import {
 import { flattenEssayParts } from 'src/questions/utils/flatten-essay-parts.util';
 import { NotificationsService } from 'src/notifications/notifications.service';
 import { isPastDeadline, remainingSeconds } from './utils/exam-timing.util';
+import { ESSAY_PASS_RATIO, percentOf, tallySession, toBreakdowns, type ScoreInput } from './utils/session-score.util';
 
 const ESSAY_TYPES = new Set([QuestionType.THEORY, QuestionType.PRACTICAL]);
 type PartScoreRow = NonNullable<StudentAnswer['partScores']>[number];
-const ESSAY_PASS_RATIO = 0.5; // awardedScore/maxScore at/above this counts toward questionsCorrect
 
 // XP model (applies to every session type — MCQ, theory, practical, mixed):
 //   MCQ     : 10 XP per correct answer.
@@ -722,18 +722,15 @@ export class ExamsService {
     session.questionsAttempted = questionsAttempted;
     session.questionsCorrect = questionsCorrect;
     session.questionsSkipped = session.totalQuestions - questionsAttempted;
-    session.subjectScores = Array.from(subjectTally.entries()).map(([subject, v]) => ({
-      subject: subject as never,
-      score: v.correct,
-      total: v.total,
-      percentage: v.total ? Math.round((v.correct / v.total) * 100) : 0,
-    }));
-    session.topicBreakdown = Array.from(topicTally.entries()).map(([topic, v]) => ({
-      topic,
-      total: v.total,
-      correct: v.correct,
-      score: v.total ? Math.round((v.correct / v.total) * 100) : 0,
-    }));
+
+    // Score by MARKS, from the answers' final state (graded essays included): a theory question scored 2/6
+    // earns 2 of its 6 points instead of nothing. See session-score.util.ts.
+    const tally = tallySession(this.scoreInputs(sessionQuestions, byId));
+    session.scorePoints = tally.points;
+    session.maxPoints = tally.maxPoints;
+    const breakdowns = toBreakdowns(tally);
+    session.subjectScores = breakdowns.subjectScores as never;
+    session.topicBreakdown = breakdowns.topicBreakdown;
 
     session.complete(); // entity method: sets status/completedAt/timeSpentSeconds + percentage/scaledScore
     if (submittedLate) {
@@ -986,23 +983,12 @@ export class ExamsService {
         : EssayScoringStatus.SCORED;
     await this.answerRepo.save(answer);
 
-    // The answer was counted as NOT correct while pending; fold its real result in.
-    if (aiScore / maxScore >= ESSAY_PASS_RATIO) {
-      session.questionsCorrect += 1;
-      const subj = session.subjectScores?.find((e) => String(e.subject) === String(question.subject));
-      if (subj) {
-        subj.score += 1;
-        subj.percentage = subj.total ? Math.round((subj.score / subj.total) * 100) : 0;
-      }
-      const topicKey = question.topic ?? 'General';
-      const topic = session.topicBreakdown?.find((e) => e.topic === topicKey);
-      if (topic) {
-        topic.correct += 1;
-        topic.score = topic.total ? Math.round((topic.correct / topic.total) * 100) : 0;
-      }
-      session.recalculate();
-      await this.sessionRepo.save(session);
-    }
+    // The answer was worth nothing while it was pending; now that it has a real score, re-derive the whole
+    // session's marks, counts and subject/topic breakdowns from the answers' final state. Recomputing (rather
+    // than adding to the old totals) can never double-count, and it upgrades older sessions on the way.
+    await this.recomputeSessionScores(session.id);
+    const refreshed = await this.sessionRepo.findOne({ where: { id: session.id } });
+    if (refreshed) Object.assign(session, refreshed);
 
     return {
       sessionQuestionId,
@@ -1020,6 +1006,74 @@ export class ExamsService {
       order: { createdAt: 'DESC' },
       take: 100,
     });
+  }
+
+  /** Maps session rows + their questions into the inputs the scoring util works from. */
+  private scoreInputs(
+    sessionQuestions: SessionQuestion[],
+    byId: Map<string, Question>,
+  ): ScoreInput[] {
+    const inputs: ScoreInput[] = [];
+    for (const sq of sessionQuestions) {
+      const question = byId.get(sq.questionId);
+      if (!question) continue;
+      const answer = sq.studentAnswer;
+      const isEssay = ESSAY_TYPES.has(question.type);
+      const graded =
+        !!answer &&
+        isEssay &&
+        answer.scoringStatus !== EssayScoringStatus.PENDING &&
+        answer.awardedScore !== null &&
+        answer.awardedScore !== undefined;
+      inputs.push({
+        subject: String(question.subject),
+        topic: question.topic ?? 'General',
+        isEssay,
+        answered: !!answer,
+        isCorrect: !!answer?.isCorrect,
+        awardedScore: graded ? Number(answer!.awardedScore) : null,
+        answerMaxScore: answer?.maxScore != null ? Number(answer.maxScore) : null,
+        questionMaxScore: this.essayQuestionMax(question),
+      });
+    }
+    return inputs;
+  }
+
+  /** Marks defined on a question: its own maxScore, else the sum of its parts' marks. */
+  private essayQuestionMax(question: Question): number | null {
+    if (question.maxScore != null && Number(question.maxScore) > 0) return Number(question.maxScore);
+    const parts = flattenEssayParts(question.structure);
+    const sum = parts.reduce((t, p) => t + (Number(p.maxScore) || 0), 0);
+    return sum > 0 ? sum : null;
+  }
+
+  /**
+   * Re-derives a COMPLETED session's marks, counts, subject/topic breakdowns and percentage from its answers.
+   * Used after a late regrade and to upgrade sessions saved before marks-based scoring. Idempotent.
+   */
+  async recomputeSessionScores(sessionId: string): Promise<boolean> {
+    const session = await this.sessionRepo.findOne({ where: { id: sessionId } });
+    if (!session || !session.isCompleted) return false;
+
+    const sessionQuestions = await this.sessionQuestionRepo.find({
+      where: { examSession: { id: sessionId } },
+      relations: ['studentAnswer'],
+      order: { order: 'ASC' },
+    });
+    const ids = sessionQuestions.map((sq) => sq.questionId);
+    const questions = ids.length ? await this.questionRepo.find({ where: ids.map((id) => ({ id })) }) : [];
+    const byId = new Map(questions.map((q) => [q.id, q]));
+
+    const tally = tallySession(this.scoreInputs(sessionQuestions, byId));
+    const breakdowns = toBreakdowns(tally);
+    session.questionsCorrect = tally.questionsCorrect;
+    session.scorePoints = tally.points;
+    session.maxPoints = tally.maxPoints;
+    session.subjectScores = breakdowns.subjectScores as never;
+    session.topicBreakdown = breakdowns.topicBreakdown;
+    session.recalculate();
+    await this.sessionRepo.save(session);
+    return true;
   }
 
   // ─── PRIVATE HELPERS ────────────────────────────────────────────────────

@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { useState } from "react";
 import SubQuestionAnswer from "../components/SubQuestionAnswer";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { AIResult, Answer, SubQuestion } from "@/types/examsTypes";
@@ -138,12 +139,13 @@ describe("type panel", () => {
     expect(screen.getByText(/^0 words$/i)).toBeInTheDocument();
   });
 
-  test("textarea is readonly when submitted", () => {
+  test("when submitted the answer is shown read-only (typeset), not as an editable box", () => {
     renderComponent({
       isSubmitted: true,
       answer: { ...baseAnswer, content: "my answer" },
     });
-    expect(screen.getByRole("textbox")).toHaveAttribute("readonly");
+    expect(screen.queryByRole("textbox")).toBeNull(); // nothing to edit
+    expect(screen.getByRole("region", { name: /your answer for/i })).toHaveTextContent("my answer");
   });
 
   test("hides word and char count when submitted", () => {
@@ -515,5 +517,124 @@ describe("discussion", () => {
   test("after submission it is rendered (the server then decides whether grading has been released)", () => {
     renderComponent({ subQuestion: part, mode: "exam", isSubmitted: true, aiResult: mockAIResult });
     expect(screen.getByTestId("discussion")).toHaveAttribute("data-part", "part-a-id");
+  });
+});
+
+// ════════════════════════════════════════════════════════════════
+// 10. EQUATIONS: the Insert-equation tool, preview, and typeset display
+// ════════════════════════════════════════════════════════════════
+
+function Harness({ start = "", isSubmitted = false }: { start?: string; isSubmitted?: boolean }) {
+  const [answer, setAnswer] = useState<Answer>({ ...baseAnswer, content: start });
+  return (
+    <SubQuestionAnswer
+      {...defaultProps}
+      answer={answer}
+      onAnswerChange={(a: Answer) => setAnswer(a)}
+      isSubmitted={isSubmitted}
+    />
+  );
+}
+const box = () => screen.getByPlaceholderText(/write your answer/i) as HTMLTextAreaElement;
+
+describe("equation tool", () => {
+  test("the toolbar has an Insert equation button next to the formatting buttons", () => {
+    render(<Harness />);
+    expect(screen.getByRole("button", { name: "Insert equation" })).toBeInTheDocument();
+    for (const name of ["Bold", "Italic", "Underline"]) expect(screen.getByRole("button", { name: name })).toBeInTheDocument();
+  });
+
+  test("every toolbar symbol button has an accessible name", () => {
+    render(<Harness />);
+    expect(screen.getByRole("button", { name: "Insert π" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Insert ≤" })).toBeInTheDocument();
+  });
+
+  test("build a fraction and it lands in the answer as \\( … \\), with a typeset preview", async () => {
+    render(<Harness start="P(2) = " />);
+    box().setSelectionRange(8, 8);
+    await userEvent.click(screen.getByRole("button", { name: "Insert equation" }));
+    await userEvent.click(screen.getByRole("button", { name: "Fraction" }));
+    await userEvent.keyboard("m");
+    await userEvent.tab();
+    await userEvent.keyboard("170+m");
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Insert equation" }));
+    expect(box().value).toBe("P(2) = \\(\\frac{m}{170+m}\\)");
+    const preview = screen.getByTestId("answer-preview");
+    expect(preview.querySelector(".mfrac")).not.toBeNull();
+    expect(preview.textContent).toContain("P(2) =");
+  });
+
+  test("Alt+= opens the tool from the keyboard (Word's shortcut)", async () => {
+    render(<Harness />);
+    box().focus();
+    await userEvent.keyboard("{Alt>}={/Alt}");
+    expect(await screen.findByRole("dialog", { name: /insert equation/i })).toBeInTheDocument();
+  });
+
+  test("with the caret inside an existing equation it edits that equation instead of nesting a new one", async () => {
+    render(<Harness start={"so \\(m = 30\\) done"} />);
+    const at = box().value.indexOf("30") + 1;
+    box().setSelectionRange(at, at);
+    await userEvent.click(screen.getByRole("button", { name: "Insert equation" }));
+    expect(screen.getByRole("dialog", { name: /edit equation/i })).toBeInTheDocument();
+    expect((screen.getByLabelText("Equation") as HTMLTextAreaElement).value).toBe("m = 30");
+    fireEvent.change(screen.getByLabelText("Equation"), { target: { value: "m = 31" } });
+    await userEvent.click(screen.getByRole("button", { name: "Update equation" }));
+    expect(box().value).toBe("so \\(m = 31\\) done");
+  });
+
+  test("a display equation goes on its own line", async () => {
+    render(<Harness start="Hence" />);
+    box().setSelectionRange(5, 5);
+    await userEvent.click(screen.getByRole("button", { name: "Insert equation" }));
+    fireEvent.change(screen.getByLabelText("Equation"), { target: { value: "x = 2" } });
+    await userEvent.click(screen.getByLabelText(/on its own line/i));
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Insert equation" }));
+    expect(box().value).toBe("Hence\n\\[x = 2\\]\n");
+  });
+
+  test("cancelling leaves the answer untouched and returns focus to the answer box", async () => {
+    render(<Harness start="keep" />);
+    await userEvent.click(screen.getByRole("button", { name: "Insert equation" }));
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(box().value).toBe("keep");
+    await waitFor(() => expect(box()).toHaveFocus());
+  });
+
+  test("the preview can be shown and hidden, and shows bold/italic and equations as the student meant them", async () => {
+    render(<Harness start={"**bold** and \\(x^2\\)"} />);
+    expect(screen.queryByTestId("answer-preview")).toBeNull();
+    const toggle = screen.getByRole("button", { name: /show preview/i });
+    await userEvent.click(toggle);
+    const preview = screen.getByTestId("answer-preview");
+    expect(preview.querySelector("strong")?.textContent).toBe("bold");
+    expect(preview.querySelector(".katex")).not.toBeNull();
+    expect(screen.getByRole("button", { name: /hide preview/i })).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(screen.getByRole("button", { name: /hide preview/i }));
+    expect(screen.queryByTestId("answer-preview")).toBeNull();
+  });
+
+  test("what the student types is stored exactly — the editor never rewrites it", async () => {
+    render(<Harness />);
+    await userEvent.type(box(), "2 * 3 = 6 and x^2");
+    expect(box().value).toBe("2 * 3 = 6 and x^2");
+  });
+});
+
+describe("after submission the answer is shown typeset", () => {
+  test("equations and formatting are rendered, and it is not editable", () => {
+    render(<Harness start={"Value of \\(m = 30\\)\n**Done**"} isSubmitted />);
+    const region = screen.getByRole("region", { name: /your answer for 1a/i });
+    expect(region.querySelector(".katex")).not.toBeNull();
+    expect(region.querySelector("strong")?.textContent).toBe("Done");
+    expect(region.textContent).not.toContain("\\(");
+    expect(screen.queryByPlaceholderText(/write your answer/i)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Insert equation" })).toBeNull();
+  });
+
+  test("an empty submitted answer says so", () => {
+    render(<Harness isSubmitted />);
+    expect(screen.getByText(/no typed answer/i)).toBeInTheDocument();
   });
 });

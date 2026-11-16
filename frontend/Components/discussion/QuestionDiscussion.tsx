@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { Lock, Loader2, MessageSquare, RefreshCw } from "lucide-react";
+import { ChevronDown, ChevronUp, Lock, Loader2, MessageSquare, RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
 import Composer from "./Composer";
 import ContributionCard from "./ContributionCard";
@@ -22,6 +22,12 @@ export interface QuestionDiscussionProps {
   enabled?: boolean;
   /** Short label used in the heading/announcements, e.g. "Question 1(a)". */
   label?: string;
+  /**
+   * Discussions are CLOSED by default, behind a button — like "Explain with AI" — so someone reading through
+   * their scores isn't confronted with a wall of comments under every question. Nothing is requested from the
+   * server until it is opened. Pass true to start open.
+   */
+  defaultOpen?: boolean;
 }
 
 /**
@@ -29,10 +35,14 @@ export interface QuestionDiscussionProps {
  * explanation / AI-explain UI: it owns its own data, so opening, closing or
  * re-running an AI explanation can never reset or hide it.
  */
-export default function QuestionDiscussion({ questionId, partId = null, enabled = true, label }: QuestionDiscussionProps) {
+export default function QuestionDiscussion({ questionId, partId = null, enabled = true, label, defaultOpen = false }: QuestionDiscussionProps) {
   const uid = useId();
   const [sort, setSort] = useState<DiscussionSort>("newest");
   const [message, setMessage] = useState("");
+  const [open, setOpen] = useState(defaultOpen);
+  // Once opened it stays mounted (just hidden) when collapsed again, so closing and re-opening never loses a draft
+  // or reloads the thread.
+  const [everOpened, setEverOpened] = useState(defaultOpen);
   const composerRegion = useRef<HTMLDivElement>(null);
   const active = enabled && !!questionId;
   const thread = useMemo(() => ({ questionId: questionId ?? "", partId }), [questionId, partId]);
@@ -48,7 +58,7 @@ export default function QuestionDiscussion({ questionId, partId = null, enabled 
     return () => window.clearTimeout(t);
   }, [message]);
 
-  const query = useThread(thread, sort, active);
+  const query = useThread(thread, sort, active && everOpened);
   const actions = useDiscussionActions(thread, {
     onError: (m) => { announce(`Error: ${m}`); toast.error(m); },
   });
@@ -61,10 +71,41 @@ export default function QuestionDiscussion({ questionId, partId = null, enabled 
   const headingId = `${uid}-h`;
   const what = label ? `${label} discussions` : "Discussions";
 
+  const panelId = `${uid}-panel`;
+  const toggleName = `${label ? `${label} — ` : ""}Discussions`;
+
   return (
-    <section aria-labelledby={headingId} className="mt-5 rounded-2xl border border-gray-200 bg-gray-50/60 p-4 sm:p-6" data-testid="question-discussion">
+    <div className="mt-4" data-testid="question-discussion">
       {/* Polite live region for new contributions, reactions and errors */}
       <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">{message}</div>
+
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => {
+          setOpen((v) => !v);
+          setEverOpened(true);
+        }}
+        className="inline-flex items-center gap-2 rounded-full border border-green-700 bg-white px-4 py-2 text-[13px] font-semibold text-green-800 hover:bg-green-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700">
+        <MessageSquare size={15} aria-hidden="true" />
+        {toggleName}
+        {query.data && !lock ? (
+          <>
+            {" "}
+            <span className="font-bold">({count})</span>
+          </>
+        ) : null}
+        {open ? <ChevronUp size={15} aria-hidden="true" /> : <ChevronDown size={15} aria-hidden="true" />}
+      </button>
+
+      <section
+        id={panelId}
+        aria-labelledby={headingId}
+        hidden={!open}
+        className="mt-3 rounded-2xl border border-gray-200 bg-gray-50/60 p-4 sm:p-6">
+      {everOpened && (
+        <>
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h4 id={headingId} className="flex items-center gap-2 text-[18px] font-extrabold text-gray-900">
@@ -158,6 +199,9 @@ export default function QuestionDiscussion({ questionId, partId = null, enabled 
           </div>
         </DiscussionProvider>
       )}
-    </section>
+        </>
+      )}
+      </section>
+    </div>
   );
 }
