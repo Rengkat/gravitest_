@@ -27,6 +27,14 @@ export type ExplainAccessDecision =
 export function decideExplainAccess(
   openSessions: OpenSessionUse[],
   nowMs: number = Date.now(),
+  /**
+   * The student has already FINISHED (submitted) a session containing this question. That is a real attempt, and
+   * the results page shows them the answers anyway, so an unrelated open practice session must not lock the
+   * explanation (REGRESSION: after submitting an exam, "Answer this question first" appeared on its results page
+   * because the same question sat unanswered in another practice session).
+   * It never overrides a live exam — that restriction is checked first.
+   */
+  hasFinishedAttempt: boolean = false,
 ): ExplainAccessDecision {
   // An exam only blocks while it is genuinely being sat (deadline-aware). An exam that was started and
   // abandoned must not lock the student out of this question forever.
@@ -49,7 +57,7 @@ export function decideExplainAccess(
   const practice = openSessions
     .filter((s) => s.mode === 'practice')
     .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
-  if (practice.length > 0 && !practice[0].answered) {
+  if (!hasFinishedAttempt && practice.length > 0 && !practice[0].answered) {
     return {
       allowed: false,
       reason: 'attempt_first',

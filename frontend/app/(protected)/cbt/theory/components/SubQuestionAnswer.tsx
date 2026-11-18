@@ -1,32 +1,13 @@
 import { AIResult, Answer, AnswerType, ExamMode, SubQuestion } from "@/types/examsTypes";
-import {
-  AlertTriangle,
-  BarChart2,
-  Bold,
-  Eye,
-  EyeOff,
-  FileText,
-  Loader2,
-  RefreshCw,
-  Italic,
-  PenTool,
-  Ruler,
-  Sigma,
-  Sparkles,
-  Trash2,
-  Type,
-  Underline,
-  Upload,
-} from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { AlertTriangle, BarChart2, ChevronDown, ChevronUp, FileText, Loader2, PenLine, PenTool, RefreshCw, Ruler, Sparkles, Trash2, Type, Upload } from "lucide-react";
+import { useRef, useState } from "react";
 import LinedCanvas from "./LinedCanvas";
 import GraphCanvas from "./GraphCanvas";
 import ConstructionCanvas from "./ConstructionCanvas";
 import AIResultPanel from "./AIResultPanel";
 import QuestionDiscussion from "@/Components/discussion/QuestionDiscussion";
-import EquationDialog from "@/Components/content/EquationDialog";
+import MathAnswerEditor from "@/Components/content/MathAnswerEditor";
 import StudentAnswerText from "@/Components/content/StudentAnswerText";
-import { findEquationAt, formatEquation, spliceText, type EquationSpan } from "@/lib/content/equationEdit";
 import Image from "next/image";
 
 export default function SubQuestionAnswer({
@@ -63,19 +44,11 @@ export default function SubQuestionAnswer({
   hasAnswer?: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<AnswerType>(answer.type);
+  // Practice: the answer box stays tucked away until the student chooses to attempt the part (like "Show Model
+  // Answer"), so the question can be read first. It opens by default when something is already written.
+  // Exam mode — and the read-only view after submission — never hide it.
+  const [attemptOpen, setAttemptOpen] = useState(!!hasAnswer);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const pendingSelRef = useRef<{ start: number; end: number } | null>(null);
-
-  useEffect(() => {
-    if (pendingSelRef.current && textareaRef.current) {
-      const { start, end } = pendingSelRef.current;
-      textareaRef.current.focus();
-      textareaRef.current.setSelectionRange(start, end);
-      pendingSelRef.current = null;
-    }
-  });
-
   const handleTypeChange = (content: string) =>
     onAnswerChange({ ...answer, type: "type", content });
   const handleWhiteboardSave = (data: string) =>
@@ -99,50 +72,6 @@ export default function SubQuestionAnswer({
     onAnswerChange({ ...answer, type: "upload", content: "", uploadData: null });
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
-  const insertFormatting = (before: string, after: string) => {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
-    const text = answer.content;
-    const newText =
-      text.substring(0, start) + before + text.substring(start, end) + after + text.substring(end);
-    pendingSelRef.current = { start: start + before.length, end: end + before.length };
-    handleTypeChange(newText);
-  };
-  const insertSymbol = (sym: string) => {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    const start = ta.selectionStart;
-    const newText = answer.content.substring(0, start) + sym + answer.content.substring(start);
-    pendingSelRef.current = { start: start + sym.length, end: start + sym.length };
-    handleTypeChange(newText);
-  };
-
-  // ── Equation editor ────────────────────────────────────────────────
-  const [equation, setEquation] = useState<{ editing: EquationSpan | null; start: number; end: number } | null>(null);
-  const [showPreview, setShowPreview] = useState(false);
-
-  const openEquation = () => {
-    const ta = textareaRef.current;
-    const start = ta?.selectionStart ?? answer.content.length;
-    const end = ta?.selectionEnd ?? start;
-    // Caret inside an existing equation → edit that one instead of nesting a new one inside it.
-    setEquation({ editing: findEquationAt(answer.content, start, end), start, end });
-  };
-
-  const insertEquation = (tex: string, display: boolean) => {
-    if (!equation) return;
-    const from = equation.editing ? equation.editing.start : equation.start;
-    const to = equation.editing ? equation.editing.end : equation.end;
-    const { text, caret } = spliceText(answer.content, from, to, formatEquation(tex, display));
-    pendingSelRef.current = { start: caret, end: caret };
-    handleTypeChange(text);
-    setEquation(null);
-    setShowPreview(true); // show the typeset result so the student sees what they built
-    requestAnimationFrame(() => textareaRef.current?.focus());
-  };
-
   const wordCount = answer.content.trim() ? answer.content.trim().split(/\s+/).length : 0;
   const tabs: { id: AnswerType; label: string; icon: React.ReactNode }[] = [
     { id: "type", label: "Type", icon: <Type size={13} /> },
@@ -155,9 +84,27 @@ export default function SubQuestionAnswer({
   // Practice mode only: the student can check THIS part as soon as they've answered it —
   // they don't have to submit the whole paper. Exam mode never renders any of this.
   const canRevealInPractice = mode === "practice" && !isSubmitted;
+  const showInput = !canRevealInPractice || attemptOpen;
+  const inputId = `attempt-${subQuestion.id}`;
 
   return (
     <div className="mt-4">
+      {/* Practice: the answer box opens on demand */}
+      {canRevealInPractice && (
+        <button
+          type="button"
+          onClick={() => setAttemptOpen((o) => !o)}
+          aria-expanded={attemptOpen}
+          aria-controls={inputId}
+          className="mb-3 flex items-center gap-2 rounded-xl border border-green-800/40 bg-green-50/60 px-4 py-2.5 text-sm font-bold text-green-900 transition-all hover:bg-green-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700">
+          <PenLine size={15} aria-hidden="true" />
+          {attemptOpen ? "Hide Answer Box" : "Attempt Question"}
+          {attemptOpen ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
+        </button>
+      )}
+
+      {/* Kept mounted but hidden when collapsed, so an unsaved drawing or half-typed answer survives. */}
+      <div id={inputId} hidden={!showInput}>
       {/* Tabs */}
       {!isSubmitted && (
         <div className="flex gap-0.5 border-b mb-4 overflow-x-auto">
@@ -179,55 +126,6 @@ export default function SubQuestionAnswer({
       {/* Type panel */}
       {(!isSubmitted && activeTab === "type") || (isSubmitted && answer.type === "type") ? (
         <div>
-          {!isSubmitted && (
-            <div className="flex gap-0.5 mb-2 p-2 bg-gray-50 rounded-lg border flex-wrap">
-              <button
-                type="button"
-                onClick={openEquation}
-                title="Insert equation (Alt+=)"
-                aria-label="Insert equation"
-                className="flex items-center gap-1 rounded bg-green-800 px-2 py-1 text-xs font-semibold text-white hover:bg-green-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-green-700">
-                <Sigma size={13} aria-hidden="true" /> Equation
-              </button>
-              <div className="w-px h-5 bg-gray-300 mx-1 self-center" />
-              <button
-                type="button"
-                aria-label="Bold"
-                onClick={() => insertFormatting("**", "**")}
-                title="Bold"
-                className="p-1.5 rounded hover:bg-gray-200 transition-colors">
-                <Bold size={13} />
-              </button>
-              <button
-                type="button"
-                aria-label="Italic"
-                onClick={() => insertFormatting("*", "*")}
-                title="Italic"
-                className="p-1.5 rounded hover:bg-gray-200 transition-colors">
-                <Italic size={13} />
-              </button>
-              <button
-                type="button"
-                aria-label="Underline"
-                onClick={() => insertFormatting("__", "__")}
-                title="Underline"
-                className="p-1.5 rounded hover:bg-gray-200 transition-colors">
-                <Underline size={13} />
-              </button>
-              <div className="w-px h-5 bg-gray-300 mx-1 self-center" />
-              {["²", "³", "½", "±", "×", "÷", "°", "π", "√", "∞", "≤", "≥", "≠", "∝"].map((sym) => (
-                <button
-                  type="button"
-                  key={sym}
-                  aria-label={`Insert ${sym}`}
-                  onClick={() => insertSymbol(sym)}
-                  className="px-1.5 py-1 rounded text-xs font-mono hover:bg-gray-200 transition-colors text-gray-700"
-                  title={`Insert ${sym}`}>
-                  {sym}
-                </button>
-              ))}
-            </div>
-          )}
           {isSubmitted ? (
             // After submission the answer is shown as the student meant it: equations typeset, formatting applied.
             <div
@@ -242,67 +140,25 @@ export default function SubQuestionAnswer({
               )}
             </div>
           ) : (
-            <textarea
-              ref={textareaRef}
+            // WYSIWYG: equations are typeset right inside the text as the student writes.
+            <MathAnswerEditor
               value={answer.content}
-              onChange={(e) => handleTypeChange(e.target.value)}
-              onKeyDown={(e) => {
-                // Alt+= is Word's "insert equation" shortcut.
-                if (e.altKey && (e.key === "=" || e.key === "+")) {
-                  e.preventDefault();
-                  openEquation();
-                }
-              }}
+              onChange={handleTypeChange}
+              label={`Your answer for ${subQuestion.label}`}
               placeholder={`Write your answer for ${subQuestion.label} here…`}
-              aria-describedby={`eq-hint-${subQuestion.id}`}
-              className="w-full min-h-[180px] p-4 border rounded-xl text-sm leading-relaxed transition-all font-sans resize-y focus:outline-none focus:ring-2 focus:ring-green-800/30 focus:border-green-700"
-              style={{ borderColor: "rgba(30,80,50,0.2)" }}
+              describedBy={`eq-hint-${subQuestion.id}`}
             />
           )}
           {!isSubmitted && (
-            <div className="flex flex-wrap items-center justify-between gap-2 mt-1.5 text-[11px] text-gray-500 px-1">
+            <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 px-1 text-[11px] text-gray-500">
               <span>
                 {wordCount} word{wordCount !== 1 ? "s" : ""}
               </span>
-              <span id={`eq-hint-${subQuestion.id}`} className="sr-only">
-                Press Alt plus equals to insert an equation such as a fraction, square root or matrix.
+              <span id={`eq-hint-${subQuestion.id}`} className="text-gray-500">
+                Equations show as maths while you write — click Equation (or press Alt+=) to add one, click an equation to edit it.
               </span>
-              <button
-                type="button"
-                aria-pressed={showPreview}
-                onClick={() => setShowPreview((v) => !v)}
-                className="flex items-center gap-1 rounded px-1.5 py-0.5 font-semibold text-green-800 hover:bg-green-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-green-700">
-                {showPreview ? <EyeOff size={12} aria-hidden="true" /> : <Eye size={12} aria-hidden="true" />}
-                {showPreview ? "Hide preview" : "Show preview"}
-              </button>
               <span>{answer.content.length} chars</span>
             </div>
-          )}
-          {!isSubmitted && showPreview && (
-            <div
-              role="region"
-              aria-label="Preview of your answer"
-              data-testid="answer-preview"
-              className="mt-2 rounded-xl border bg-white p-3"
-              style={{ borderColor: "rgba(30,80,50,0.2)" }}>
-              {answer.content.trim() ? (
-                <StudentAnswerText text={answer.content} />
-              ) : (
-                <span className="text-sm text-gray-500">Nothing to preview yet.</span>
-              )}
-            </div>
-          )}
-          {equation && (
-            <EquationDialog
-              editing={!!equation.editing}
-              initialTex={equation.editing?.tex ?? ""}
-              initialDisplay={equation.editing?.display ?? false}
-              onInsert={insertEquation}
-              onClose={() => {
-                setEquation(null);
-                requestAnimationFrame(() => textareaRef.current?.focus());
-              }}
-            />
           )}
         </div>
       ) : null}
@@ -450,10 +306,12 @@ export default function SubQuestionAnswer({
         </div>
       )}
 
+      </div>
+
       {/* ── PRACTICE MODE: check THIS part on its own ── */}
       {canRevealInPractice && (
         <div className="mt-4" aria-live="polite">
-          {(!aiResult || isStale) && (
+          {(!aiResult || isStale) && showInput && (
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"

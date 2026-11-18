@@ -228,25 +228,33 @@ export class AiExplainService {
       .leftJoin('sq.studentAnswer', 'a')
       .where('sq.questionId = :questionId', { questionId })
       .andWhere('p.user_id = :userId', { userId })
-      .andWhere('s.status = :status', { status: SessionStatus.IN_PROGRESS })
+      .andWhere('s.status IN (:...statuses)', {
+        statuses: [SessionStatus.IN_PROGRESS, SessionStatus.COMPLETED, SessionStatus.SUBMITTED],
+      })
       .select('s.mode', 'mode')
+      .addSelect('s.status', 'status')
       .addSelect('a.id', 'answerId')
       .addSelect('s.startedAt', 'startedAt')
       .addSelect('s.allowedDurationSeconds', 'allowedDurationSeconds')
       .getRawMany<{
         mode: ExamMode;
+        status: SessionStatus;
         answerId: string | null;
         startedAt: Date;
         allowedDurationSeconds: number | null;
       }>();
 
-    const open: OpenSessionUse[] = rows.map((r) => ({
-      mode: r.mode === ExamMode.MOCK ? 'mock' : 'practice',
-      answered: !!r.answerId,
-      startedAt: r.startedAt,
-      allowedDurationSeconds: r.allowedDurationSeconds,
-    }));
-    const decision = decideExplainAccess(open);
+    // Only sessions still being taken can lock a question; a finished one proves the student has attempted it.
+    const hasFinishedAttempt = rows.some((r) => r.status !== SessionStatus.IN_PROGRESS);
+    const open: OpenSessionUse[] = rows
+      .filter((r) => r.status === SessionStatus.IN_PROGRESS)
+      .map((r) => ({
+        mode: r.mode === ExamMode.MOCK ? ('mock' as const) : ('practice' as const),
+        answered: !!r.answerId,
+        startedAt: r.startedAt,
+        allowedDurationSeconds: r.allowedDurationSeconds,
+      }));
+    const decision = decideExplainAccess(open, Date.now(), hasFinishedAttempt);
     if (!decision.allowed) {
       throw new ForbiddenException({ code: decision.reason, message: decision.message });
     }

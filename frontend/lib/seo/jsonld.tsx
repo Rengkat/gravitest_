@@ -1,16 +1,10 @@
+import { InlineScript } from "@/Components/shared/InlineScript";
 import { SITE_NAME, SITE_URL, absoluteUrl } from "./site";
 
-// Renders a <script type="application/ld+json"> tag. Server components
-// only (no client-side JS needed for search engines to read this) —
-// import and drop <JsonLd data={...}/> anywhere in a page's JSX tree.
+// Renders a <script type="application/ld+json"> tag via InlineScript (server-only, so React 19 never
+// warns about client-created scripts). Import and drop <JsonLd data={...}/> anywhere in a page's JSX tree.
 export function JsonLd({ data }: { data: Record<string, unknown> }) {
-  return (
-    <script
-      type="application/ld+json"
-      // eslint-disable-next-line react/no-danger
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
-    />
-  );
+  return <InlineScript type="application/ld+json" code={JSON.stringify(data)} />;
 }
 
 // Organization + WebSite (with a sitelinks search box target) — belongs

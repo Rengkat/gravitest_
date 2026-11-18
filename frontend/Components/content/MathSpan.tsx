@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import katex from "katex";
 import "katex/contrib/mhchem"; // adds \ce{…} (chemical formulas/equations) and \pu{…} (physical units)
 import "katex/dist/katex.min.css";
+import { normalizeTexUnicode } from "@/lib/content/texUnicode";
 
 /**
  * The ONE place KaTeX is configured. Every equation in the app — question text, options, explanations, AI
@@ -28,7 +29,7 @@ const OPTIONS = {
 
 export function renderTex(tex: string, display: boolean): string {
   try {
-    return katex.renderToString(tex, { ...OPTIONS, displayMode: display });
+    return katex.renderToString(normalizeTexUnicode(tex), { ...OPTIONS, displayMode: display });
   } catch {
     // KaTeX only throws for conditions throwOnError can't soften (e.g. exceeding maxExpand).
     return "";

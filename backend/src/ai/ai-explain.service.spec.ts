@@ -4,7 +4,7 @@ jest.mock('src/questions/questions.service', () => ({ QuestionsService: class {}
 import { ForbiddenException, HttpException } from '@nestjs/common';
 import { AiExplainService } from './ai-explain.service';
 import { AiImageError } from './ai-image.service';
-import { ExamMode } from 'src/common/enums/enums';
+import { ExamMode, SessionStatus } from 'src/common/enums/enums';
 
 const QID = '11111111-1111-1111-1111-111111111111';
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(16)]).toString('base64');
@@ -24,7 +24,7 @@ const withDiagram = { ...baseQuestion, questionImageUrl: 'https://pub.example.r2
 
 function build(opts: {
   question?: typeof baseQuestion;
-  sessions?: { mode: ExamMode; answerId: string | null; startedAt: Date; allowedDurationSeconds?: number | null }[];
+  sessions?: { mode: ExamMode; answerId: string | null; startedAt: Date; allowedDurationSeconds?: number | null; status?: SessionStatus }[];
   cached?: Record<string, unknown> | null;
   loadImages?: (refs: { label: string; url: string }[]) => Promise<unknown[]>;
   aiResult?: () => Promise<unknown>;
@@ -53,7 +53,7 @@ function build(opts: {
   const qb: Record<string, jest.Mock> = {};
   for (const m of ['innerJoin', 'leftJoin', 'where', 'andWhere', 'select', 'addSelect']) qb[m] = jest.fn(() => qb);
   qb.getRawMany = jest.fn().mockResolvedValue(
-    sessions.map((s) => ({ mode: s.mode, answerId: s.answerId, startedAt: s.startedAt, allowedDurationSeconds: s.allowedDurationSeconds ?? null })),
+    sessions.map((s) => ({ status: s.status ?? SessionStatus.IN_PROGRESS, mode: s.mode, answerId: s.answerId, startedAt: s.startedAt, allowedDurationSeconds: s.allowedDurationSeconds ?? null })),
   );
   const dataSource = { getRepository: () => ({ createQueryBuilder: () => qb }) };
 
@@ -223,6 +223,18 @@ describe('attempt-before-explanation is preserved', () => {
     });
     await expect(ask(svc)).resolves.toMatchObject({ cached: false });
     expect(router.complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('REGRESSION: a SUBMITTED exam on the results page is explainable even if another practice session has it unanswered', async () => {
+    const { svc, router } = build({
+      sessions: [
+        { mode: ExamMode.MOCK, answerId: 'a', startedAt: new Date(Date.now() - 7200_000), status: SessionStatus.COMPLETED },
+        { mode: ExamMode.PRACTICE, answerId: null, startedAt: new Date() },
+      ],
+    });
+    const out = await svc.explain('u', { questionId: QID } as never).catch((x) => x);
+    expect(out).not.toBeInstanceOf(ForbiddenException);
+    expect(router.complete).toHaveBeenCalled();
   });
 
   it('exam in progress → locked', async () => {

@@ -6,9 +6,9 @@ import { AIResult, Answer, SubQuestion } from "@/types/examsTypes";
 import userEvent from "@testing-library/user-event";
 
 //_______mock_____
-vi.mock("../LinedCanvas", () => ({ default: () => <div data-testid="lined-canvas" /> }));
-vi.mock("../GraphCanvas", () => ({ default: () => <div data-testid="graph-canvas" /> }));
-vi.mock("../ConstructionCanvas", () => ({
+vi.mock("../components/LinedCanvas", () => ({ default: () => <div data-testid="lined-canvas" /> }));
+vi.mock("../components/GraphCanvas", () => ({ default: () => <div data-testid="graph-canvas" /> }));
+vi.mock("../components/ConstructionCanvas", () => ({
   default: () => <div data-testid="construction-canvas" />,
 }));
 
@@ -18,7 +18,7 @@ vi.mock("@/Components/discussion/QuestionDiscussion", () => ({
   ),
 }));
 
-vi.mock("../AIResultPanel", () => ({
+vi.mock("../components/AIResultPanel", () => ({
   default: ({ result, onToggleSolution }: { result: AIResult; onToggleSolution: () => void }) => (
     <div data-testid="ai-result-panel">
       <span>{result.feedback}</span>
@@ -105,21 +105,23 @@ describe("tabs", () => {
   });
 });
 describe("type panel", () => {
-  test("renders textarea with correct placeholder", () => {
+  test("renders the answer editor with its placeholder", () => {
     renderComponent();
-    expect(screen.getByPlaceholderText(/write your answer for 1a here/i)).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /your answer for 1a/i })).toBeInTheDocument();
+    expect(screen.getByText(/write your answer for 1a here/i)).toBeInTheDocument();
   });
 
-  test("calls onAnswerChange with updated content when user types", async () => {
+  test("shows the saved answer inside the editor", () => {
+    renderComponent({ answer: { ...baseAnswer, content: "hello world" } });
+    expect(screen.getByRole("textbox", { name: /your answer for 1a/i })).toHaveTextContent("hello world");
+  });
+
+  test("calls onAnswerChange with the stored text when a symbol is added", async () => {
     const onAnswerChange = vi.fn();
-    renderComponent({ onAnswerChange });
-
-    fireEvent.change(screen.getByRole("textbox"), {
-      target: { value: "hello world" },
-    });
-
-    expect(onAnswerChange).toHaveBeenCalledWith(
-      expect.objectContaining({ type: "type", content: "hello world" }),
+    renderComponent({ onAnswerChange, answer: { ...baseAnswer, content: "x" } });
+    await userEvent.click(screen.getByRole("button", { name: "Insert ²" }));
+    await waitFor(() =>
+      expect(onAnswerChange).toHaveBeenCalledWith(expect.objectContaining({ type: "type", content: "x²" })),
     );
   });
 
@@ -176,37 +178,11 @@ describe("formatting toolbar", () => {
     expect(screen.queryByTitle("Italic")).not.toBeInTheDocument();
   });
 
-  test("bold button inserts ** markers", async () => {
-    const onAnswerChange = vi.fn();
-    renderComponent({ onAnswerChange, answer: { ...baseAnswer, content: "hello" } });
-
-    await userEvent.click(screen.getByTitle("Bold"));
-
-    expect(onAnswerChange).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining("**") }),
-    );
-  });
-
-  test("italic button inserts * markers", async () => {
-    const onAnswerChange = vi.fn();
-    renderComponent({ onAnswerChange, answer: { ...baseAnswer, content: "hello" } });
-
-    await userEvent.click(screen.getByTitle("Italic"));
-
-    expect(onAnswerChange).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining("*") }),
-    );
-  });
-
-  test("underline button inserts __ markers", async () => {
-    const onAnswerChange = vi.fn();
-    renderComponent({ onAnswerChange, answer: { ...baseAnswer, content: "hello" } });
-
-    await userEvent.click(screen.getByTitle("Underline"));
-
-    expect(onAnswerChange).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining("__") }),
-    );
+  test("the format buttons are real toggles (aria-pressed) and are wired to the editor", () => {
+    renderComponent({ answer: { ...baseAnswer, content: "hello" } });
+    for (const name of ["Bold", "Italic", "Underline"]) {
+      expect(screen.getByRole("button", { name })).toHaveAttribute("aria-pressed", "false");
+    }
   });
 
   test("renders all math symbol buttons", () => {
@@ -222,8 +198,10 @@ describe("formatting toolbar", () => {
 
     await userEvent.click(screen.getByTitle("Insert ²"));
 
-    expect(onAnswerChange).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining("²") }),
+    await waitFor(() =>
+      expect(onAnswerChange).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining("²") }),
+      ),
     );
   });
 });
@@ -379,6 +357,51 @@ describe("upload panel", () => {
 // 6. PRACTICE MODE — per-part "Check Answer"
 // ════════════════════════════════════════════════════════════════
 
+describe("practice mode: the answer box opens on demand (like Show Model Answer)", () => {
+  test("starts collapsed: the question can be read first, with no answer box or tabs in the way", () => {
+    renderComponent({ hasAnswer: false });
+    const toggle = screen.getByRole("button", { name: /attempt question/i });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("textbox", { name: /your answer for 1a/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^whiteboard/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /check answer/i })).toBeNull();
+  });
+
+  test("clicking it opens the answer box and the tabs; clicking again hides them", async () => {
+    renderComponent({ hasAnswer: false });
+    await userEvent.click(screen.getByRole("button", { name: /attempt question/i }));
+    expect(screen.getByRole("button", { name: /hide answer box/i })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("textbox", { name: /your answer for 1a/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^whiteboard/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /hide answer box/i }));
+    expect(screen.queryByRole("textbox", { name: /your answer for 1a/i })).toBeNull();
+  });
+
+  test("hiding the box keeps what was written", async () => {
+    renderComponent({ answer: { ...baseAnswer, content: "my working" }, hasAnswer: true });
+    await userEvent.click(screen.getByRole("button", { name: /hide answer box/i }));
+    await userEvent.click(screen.getByRole("button", { name: /attempt question/i }));
+    expect(screen.getByRole("textbox", { name: /your answer for 1a/i })).toHaveTextContent("my working");
+  });
+
+  test("opens straight away when this part already has an answer (e.g. resuming)", () => {
+    renderComponent({ answer: { ...baseAnswer, content: "already" }, hasAnswer: true });
+    expect(screen.getByRole("textbox", { name: /your answer for 1a/i })).toBeInTheDocument();
+  });
+
+  test("exam mode never hides the answer box and has no toggle", () => {
+    renderComponent({ mode: "exam", hasAnswer: false });
+    expect(screen.queryByRole("button", { name: /attempt question/i })).toBeNull();
+    expect(screen.getByRole("textbox", { name: /your answer for 1a/i })).toBeInTheDocument();
+  });
+
+  test("the read-only view after submission is unaffected", () => {
+    renderComponent({ isSubmitted: true, answer: { ...baseAnswer, content: "done" }, hasAnswer: true });
+    expect(screen.queryByRole("button", { name: /attempt question/i })).toBeNull();
+    expect(screen.getByRole("region", { name: /your answer for 1a/i })).toHaveTextContent("done");
+  });
+});
+
 describe("practice mode: Check Answer for this part", () => {
   const answered = { ...baseAnswer, content: "F = ma" };
 
@@ -394,8 +417,9 @@ describe("practice mode: Check Answer for this part", () => {
     expect(onAIScore).toHaveBeenCalledTimes(1);
   });
 
-  test("is disabled, with a hint, until something has been answered", () => {
+  test("is disabled, with a hint, until something has been answered", async () => {
     renderComponent({ hasAnswer: false });
+    await userEvent.click(screen.getByRole("button", { name: /attempt question/i }));
     expect(screen.getByRole("button", { name: /check answer/i })).toBeDisabled();
     expect(screen.getByText(/write or upload an answer for this part first/i)).toBeInTheDocument();
   });
@@ -423,7 +447,7 @@ describe("practice mode: Check Answer for this part", () => {
       onAIScore,
     });
     expect(screen.getByRole("alert")).toHaveTextContent(/could not be graded/i);
-    expect(screen.getByDisplayValue("F = ma")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /your answer for 1a/i })).toHaveTextContent("F = ma");
     await userEvent.click(screen.getByRole("button", { name: /try again/i }));
     expect(onAIScore).toHaveBeenCalledTimes(1);
   });
@@ -499,8 +523,7 @@ describe("discussion", () => {
     const discussion = screen.getByTestId("discussion");
     expect(discussion).toHaveAttribute("data-question", "q-1");
     expect(discussion).toHaveAttribute("data-part", "part-a-id");
-    // (The panel is found by its role: the file's "../AIResultPanel" mock points at the wrong path, so the real one renders.)
-    const panel = screen.getByRole("region", { name: /AI assessment/i });
+    const panel = screen.getByTestId("ai-result-panel");
     expect(panel.compareDocumentPosition(discussion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
@@ -535,9 +558,20 @@ function Harness({ start = "", isSubmitted = false }: { start?: string; isSubmit
     />
   );
 }
-const box = () => screen.getByPlaceholderText(/write your answer/i) as HTMLTextAreaElement;
+const box = () => screen.getByRole("textbox", { name: /your answer for 1a/i });
+const stored = () => screen.getByTestId("stored-answer").textContent;
 
-describe("equation tool", () => {
+function StoredHarness({ start = "" }: { start?: string }) {
+  const [answer, setAnswer] = useState<Answer>({ ...baseAnswer, content: start });
+  return (
+    <>
+      <SubQuestionAnswer {...defaultProps} answer={answer} onAnswerChange={(a: Answer) => setAnswer(a)} />
+      <output data-testid="stored-answer">{answer.content}</output>
+    </>
+  );
+}
+
+describe("equation tool (WYSIWYG editor)", () => {
   test("the toolbar has an Insert equation button next to the formatting buttons", () => {
     render(<Harness />);
     expect(screen.getByRole("button", { name: "Insert equation" })).toBeInTheDocument();
@@ -550,75 +584,54 @@ describe("equation tool", () => {
     expect(screen.getByRole("button", { name: "Insert ≤" })).toBeInTheDocument();
   });
 
-  test("build a fraction and it lands in the answer as \\( … \\), with a typeset preview", async () => {
-    render(<Harness start="P(2) = " />);
-    box().setSelectionRange(8, 8);
+  test("build a fraction: it is typeset IN the answer and stored as \\( … \\)", async () => {
+    render(<StoredHarness start="P(2) = " />);
     await userEvent.click(screen.getByRole("button", { name: "Insert equation" }));
     await userEvent.click(screen.getByRole("button", { name: "Fraction" }));
     await userEvent.keyboard("m");
     await userEvent.tab();
     await userEvent.keyboard("170+m");
     await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Insert equation" }));
-    expect(box().value).toBe("P(2) = \\(\\frac{m}{170+m}\\)");
-    const preview = screen.getByTestId("answer-preview");
-    expect(preview.querySelector(".mfrac")).not.toBeNull();
-    expect(preview.textContent).toContain("P(2) =");
+    await waitFor(() => expect(stored()).toBe("P(2) = \\(\\frac{m}{170+m}\\)"));
+    expect(box().querySelector(".mfrac")).not.toBeNull(); // typeset live, no separate preview needed
+    expect(box().textContent).toContain("P(2) =");
+  });
+
+  test("there is no separate preview any more — the editor already shows the typeset answer", () => {
+    render(<Harness start={"**bold** and \\(x^2\\)"} />);
+    expect(screen.queryByRole("button", { name: /show preview/i })).toBeNull();
+    expect(box().querySelector(".font-bold")?.textContent).toBe("bold");
+    expect(box().querySelector(".katex")).not.toBeNull();
   });
 
   test("Alt+= opens the tool from the keyboard (Word's shortcut)", async () => {
     render(<Harness />);
-    box().focus();
-    await userEvent.keyboard("{Alt>}={/Alt}");
+    fireEvent.keyDown(box(), { key: "=", altKey: true });
     expect(await screen.findByRole("dialog", { name: /insert equation/i })).toBeInTheDocument();
   });
 
-  test("with the caret inside an existing equation it edits that equation instead of nesting a new one", async () => {
-    render(<Harness start={"so \\(m = 30\\) done"} />);
-    const at = box().value.indexOf("30") + 1;
-    box().setSelectionRange(at, at);
-    await userEvent.click(screen.getByRole("button", { name: "Insert equation" }));
-    expect(screen.getByRole("dialog", { name: /edit equation/i })).toBeInTheDocument();
+  test("clicking an equation edits that equation instead of adding another", async () => {
+    render(<StoredHarness start={"so \\(m = 30\\) done"} />);
+    await userEvent.click(screen.getByTestId("answer-equation"));
+    expect(await screen.findByRole("dialog", { name: /edit equation/i })).toBeInTheDocument();
     expect((screen.getByLabelText("Equation") as HTMLTextAreaElement).value).toBe("m = 30");
     fireEvent.change(screen.getByLabelText("Equation"), { target: { value: "m = 31" } });
     await userEvent.click(screen.getByRole("button", { name: "Update equation" }));
-    expect(box().value).toBe("so \\(m = 31\\) done");
+    await waitFor(() => expect(stored()).toBe("so \\(m = 31\\) done"));
   });
 
-  test("a display equation goes on its own line", async () => {
-    render(<Harness start="Hence" />);
-    box().setSelectionRange(5, 5);
-    await userEvent.click(screen.getByRole("button", { name: "Insert equation" }));
-    fireEvent.change(screen.getByLabelText("Equation"), { target: { value: "x = 2" } });
-    await userEvent.click(screen.getByLabelText(/on its own line/i));
-    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Insert equation" }));
-    expect(box().value).toBe("Hence\n\\[x = 2\\]\n");
-  });
-
-  test("cancelling leaves the answer untouched and returns focus to the answer box", async () => {
-    render(<Harness start="keep" />);
+  test("cancelling leaves the answer untouched", async () => {
+    render(<StoredHarness start="keep" />);
     await userEvent.click(screen.getByRole("button", { name: "Insert equation" }));
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(box().value).toBe("keep");
-    await waitFor(() => expect(box()).toHaveFocus());
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(stored()).toBe("keep");
   });
 
-  test("the preview can be shown and hidden, and shows bold/italic and equations as the student meant them", async () => {
-    render(<Harness start={"**bold** and \\(x^2\\)"} />);
-    expect(screen.queryByTestId("answer-preview")).toBeNull();
-    const toggle = screen.getByRole("button", { name: /show preview/i });
-    await userEvent.click(toggle);
-    const preview = screen.getByTestId("answer-preview");
-    expect(preview.querySelector("strong")?.textContent).toBe("bold");
-    expect(preview.querySelector(".katex")).not.toBeNull();
-    expect(screen.getByRole("button", { name: /hide preview/i })).toHaveAttribute("aria-pressed", "true");
-    await userEvent.click(screen.getByRole("button", { name: /hide preview/i }));
-    expect(screen.queryByTestId("answer-preview")).toBeNull();
-  });
-
-  test("what the student types is stored exactly — the editor never rewrites it", async () => {
-    render(<Harness />);
-    await userEvent.type(box(), "2 * 3 = 6 and x^2");
-    expect(box().value).toBe("2 * 3 = 6 and x^2");
+  test("opening an answer never rewrites what was stored (asterisks, carets, odd markers)", () => {
+    render(<StoredHarness start="2 * 3 = 6 and x^2" />);
+    expect(stored()).toBe("2 * 3 = 6 and x^2");
+    expect(box()).toHaveTextContent("2 * 3 = 6 and x^2");
   });
 });
 

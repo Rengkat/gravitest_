@@ -41,6 +41,20 @@ describe('decideExplainAccess', () => {
     });
   });
 
+  describe('a finished (submitted) attempt', () => {
+    it('REGRESSION: after submitting an exam, an unanswered copy in another practice session does not lock the explanation', () => {
+      expect(decideExplainAccess([practice(false, 1)], NOW, true)).toEqual({ allowed: true });
+    });
+
+    it('never overrides a live exam', () => {
+      expect(decideExplainAccess([mock(5)], NOW, true)).toMatchObject({ allowed: false, reason: 'exam_in_progress' });
+    });
+
+    it('without a finished attempt the practice lock still applies', () => {
+      expect(decideExplainAccess([practice(false, 1)], NOW, false)).toMatchObject({ allowed: false, reason: 'attempt_first' });
+    });
+  });
+
   describe('exam mode', () => {
     it('blocks while an exam containing the question is genuinely in progress', () => {
       expect(decideExplainAccess([mock(5)], NOW)).toMatchObject({ allowed: false, reason: 'exam_in_progress' });
