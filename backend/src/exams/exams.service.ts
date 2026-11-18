@@ -261,6 +261,10 @@ export class ExamsService {
 
   // ─── SUBMIT ANSWER ──────────────────────────────────────────────────────
   async submitAnswer(userId: string, sessionId: string, dto: SubmitAnswerDto) {
+    // NOTE (regression guard): the drafts below are PLAIN objects on purpose. With target ES2023 a created
+    // StudentAnswer carries `id: undefined` as an own property, and Object.assign-ing that over the saved answer
+    // wiped its id — so every save after the first INSERTed a duplicate row and then crashed with
+    // "duplicate key … REL_… (session_question_id)", leaving only the first autosaved part stored.
     const session = await this.loadOwnedSession(userId, sessionId);
     if (session.status !== SessionStatus.IN_PROGRESS) {
       throw new BadRequestException('This session has already been submitted.');
@@ -321,7 +325,7 @@ export class ExamsService {
       });
       // A grade is stale only if THAT part's answer changed.
       const keptScores = (answer?.partScores ?? []).filter((ps) => !changedPaths.has(ps.path));
-      const draft = this.answerRepo.create({
+      const draft = {
         selectedLabel: null,
         selectedOptionId: null,
         // Flattened, labelled copy — keeps teacher review / exports that
@@ -341,10 +345,10 @@ export class ExamsService {
         maxScore: leaves.reduce((sum, l) => sum + l.maxScore, 0) || (question.maxScore ?? 10),
         isCorrect: false,
         answeredAt: new Date(),
-      });
-      answer = answer ? Object.assign(answer, draft) : draft;
+      };
+      answer = answer ? Object.assign(answer, draft) : this.answerRepo.create(draft);
     } else if (isEssay) {
-      const draft = this.answerRepo.create({
+      const draft = {
         selectedLabel: null,
         selectedOptionId: null,
         essayText: dto.essayText ?? '',
@@ -355,13 +359,13 @@ export class ExamsService {
         maxScore: question.maxScore ?? 10,
         isCorrect: false,
         answeredAt: new Date(),
-      });
-      answer = answer ? Object.assign(answer, draft) : draft;
+      };
+      answer = answer ? Object.assign(answer, draft) : this.answerRepo.create(draft);
     } else {
       const isCorrect = dto.selectedLabel
         ? await this.questionsService.verifyAnswer(question.id, dto.selectedLabel)
         : false;
-      const draft = this.answerRepo.create({
+      const draft = {
         selectedLabel: dto.selectedLabel ?? null,
         essayText: null,
         essayImageUrls: [],
@@ -370,8 +374,8 @@ export class ExamsService {
         awardedScore: isCorrect ? 1 : 0,
         maxScore: 1,
         answeredAt: new Date(),
-      });
-      answer = answer ? Object.assign(answer, draft) : draft;
+      };
+      answer = answer ? Object.assign(answer, draft) : this.answerRepo.create(draft);
     }
 
     const savedAnswer = await this.answerRepo.save(answer);
